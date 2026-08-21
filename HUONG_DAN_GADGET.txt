@@ -1,0 +1,413 @@
+HƯỚNG DẪN RIÊNG CHO FRIDA GADGET
+================================
+
+File này hướng dẫn dùng `gadget-pipeline` để nhúng Frida Gadget vào APK,
+chạy không cần root và không cần frida-server.
+
+Muốn xem tổng quan lệnh PatchX:
+
+    HUONG_DAN_LENH.txt
+
+Muốn xem hướng dẫn behavior + Frida:
+
+    HUONG_DAN_BEHAVIOR_FRIDA.txt
+
+======================================================================
+I. GADGET LÀ GÌ VÀ KÍCH HOẠT NHƯ THẾ NÀO
+======================================================================
+
+Frida Gadget là bản thư viện Frida chạy bên trong APK.
+
+Pipeline sẽ:
+
+1. Nhúng file:
+
+       lib/arm64-v8a/libgadget.so
+       lib/arm64-v8a/libgadget.config.so
+       lib/arm64-v8a/libgadget.script.so
+
+2. Sửa AndroidManifest:
+
+       android:extractNativeLibs="true"
+
+3. Chèn lệnh nạp thư viện vào launcher activity hoặc application:
+
+       const-string v0, "gadget"
+       invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
+
+4. Chuẩn hoá resource chứa ký tự `$` trước khi build:
+
+       apk-fix-res
+
+   Bước này giúp aapt2 không báo lỗi tên resource/entry name.
+
+Khi app được mở, `System.loadLibrary("gadget")` chạy và Gadget tự kích hoạt.
+
+Không cần:
+- Root.
+- frida-server.
+- Máy tính giữ kết nối khi dùng chế độ `script`.
+
+======================================================================
+II. HAI CHẾ ĐỘ GADGET
+======================================================================
+
+1. Chế độ script
+
+   - Gadget tự đọc và chạy `libgadget.script.so`.
+   - Hợp để mod tự động.
+   - Không cần bật máy tính điều khiển.
+
+   Lệnh tạo:
+
+       python3 patchx gadget-pipeline app.apk \
+         -o outputs/behavior/gadget \
+         --config outputs/behavior/frida_hooks_config.json \
+         --gadget-mode script \
+         --yes
+
+2. Chế độ listen
+
+   - Gadget mở cổng `127.0.0.1:27042`.
+   - Hợp để attach và điều khiển live bằng `remote-observe`.
+   - App phải được mở trước khi attach.
+
+   Lệnh tạo:
+
+       python3 patchx gadget-pipeline app.apk \
+         -o outputs/behavior/gadget_listen \
+         --config outputs/behavior/frida_hooks_config.json \
+         --gadget-mode listen \
+         --yes
+
+======================================================================
+III. LỆNH GADGET-PIPELINE ĐẦY ĐỦ
+======================================================================
+
+Cú pháp:
+
+    python3 patchx gadget-pipeline <APK_HOẶC_CÂY_APK> [TÙY CHỌN]
+
+Tham số chính:
+
+    input
+        File .apk hoặc thư mục cây APK đã giải mã.
+
+    -o, --out-dir
+        Thư mục xuất APK và artifact.
+        Mặc định: outputs/behavior/gadget
+
+    --config
+        Path hoặc URL file cấu hình Frida/Gadget.
+        Ví dụ:
+          outputs/behavior/frida_hooks_config.json
+          https://example.com/frida-gadget.config.json
+
+    --gadget-url
+        URL file frida-gadget .so.xz nếu muốn tải bản khác.
+
+    --gadget-path
+        Đường dẫn libgadget.so local nếu đã tải sẵn.
+
+    --gadget-mode {script,listen}
+        script = tự nạp script.
+        listen = chờ remote-observe attach.
+
+    --yes
+        Tự xác nhận config đầu tiên tìm thấy.
+
+    --keep-tree
+        Giữ cây APK đã giải mã để kiểm tra.
+
+    --no-sign
+        Không ký APK.
+
+    --keystore
+        Keystore dùng để ký.
+
+    --ks-pass
+        Mật khẩu keystore.
+        Mặc định: android
+
+Ví dụ đầy đủ:
+
+    python3 patchx gadget-pipeline app.apk \
+      -o outputs/behavior/gadget \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-mode script \
+      --yes \
+      --keep-tree
+
+Ví dụ dùng gadget đã tải sẵn:
+
+    python3 patchx gadget-pipeline app.apk \
+      -o outputs/behavior/gadget \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-path ./libgadget.so \
+      --gadget-mode script \
+      --yes
+
+======================================================================
+IV. CÁCH CHỌN CONFIG
+======================================================================
+
+Khi không truyền `--config`, pipeline tự tìm các tên:
+
+    frida_hooks_config.json
+    frida-gadget.config.json
+    frida-gadget.config.so
+    libgadget.config.so
+    loader_hook.json
+
+Khi tìm thấy, chương trình hỏi:
+
+    Chon so, `y` de dung [1], `n` de nhap duong dan:
+
+Cách trả lời:
+
+    y hoặc Enter
+        Dùng file đầu tiên.
+
+    1, 2, 3...
+        Dùng file theo số thứ tự.
+
+    n
+        Nhập đường dẫn hoặc URL khác.
+
+Nếu muốn tự động không hỏi:
+
+    --yes
+
+======================================================================
+V. FILE ĐẦU RA
+======================================================================
+
+Thư mục `outputs/behavior/gadget` thường có:
+
+    app_signed.apk
+        APK đã ký, dùng để cài.
+
+    app_aligned.apk
+        APK đã zipalign.
+
+    app_unsigned.apk
+        APK chưa ký từ apktool.
+
+    libgadget.so
+        File gadget đã tải hoặc dùng.
+
+    gadget_debug.keystore
+        Keystore tự tạo nếu không truyền --keystore.
+
+    work/...
+        Cây APK đã giải mã nếu dùng --keep-tree.
+
+======================================================================
+VI. KIỂM TRA VÀ CÀI ĐẶT
+======================================================================
+
+Kiểm tra chữ ký:
+
+    apksigner verify --verbose outputs/behavior/gadget/app_signed.apk
+
+Cài bằng adb:
+
+    adb install -r outputs/behavior/gadget/app_signed.apk
+
+Không có adb:
+
+    Mở trực tiếp file:
+    outputs/behavior/gadget/app_signed.apk
+
+Kiểm tra file gadget có trong APK:
+
+    unzip -l outputs/behavior/gadget/app_signed.apk | grep libgadget
+
+Kết quả mong đợi:
+
+    lib/arm64-v8a/libgadget.so
+    lib/arm64-v8a/libgadget.config.so
+    lib/arm64-v8a/libgadget.script.so
+
+======================================================================
+VII. MỘT LUỒNG: GADGET LISTEN + REMOTE-OBSERVE
+======================================================================
+
+Đây là quy trình liền mạch từ APK gốc đến điều khiển live:
+
+    1. Phân tích APK để có config hook.
+    2. Build APK nhúng Gadget chế độ listen.
+    3. Ký và cài APK.
+    4. Mở app để Gadget mở cổng 127.0.0.1:27042.
+    5. Dùng remote-observe attach vào Gadget.
+    6. Gửi rule điều khiển và xem log.
+
+Bước 1: Phân tích và tạo config hook.
+
+    python3 patchx behavior-pipeline apk_trees \
+      -o outputs/behavior \
+      --flow all \
+      --min-score 0.7
+
+Bước 2: Build listen.
+
+    python3 patchx gadget-pipeline app.apk \
+      -o outputs/behavior/gadget_listen \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-mode listen \
+      --yes
+
+Bước 3: Cài và mở app.
+
+    adb install -r outputs/behavior/gadget_listen/app_signed.apk
+
+    Sau đó mở app trên điện thoại.
+
+Bước 4: Attach điều khiển.
+
+    python3 patchx remote-observe com.example.app \
+      --hook outputs/behavior/generated_hook.js \
+      --mode attach \
+      --device tcp:127.0.0.1:27042 \
+      --duration 60 \
+      --rule "match=vip_check,false;command=set_vip_status;value=true" \
+      --rule "match=login,required;command=set_login_bypass;value=true"
+
+Bảng tùy chọn remote-observe:
+
+    --hook HOOK
+        File generated_hook.js.
+        Ví dụ: outputs/behavior/generated_hook.js
+
+    --mode {spawn,attach}
+        attach: dùng cho Gadget listen.
+        spawn: dùng khi có frida-server.
+
+    --device DEVICE
+        USB mặc định.
+        Với Gadget listen dùng:
+          tcp:127.0.0.1:27042
+
+    --log LOG
+        File log JSONL.
+
+    --save SAVE
+        Lưu toàn bộ sự kiện JSON khi kết thúc.
+
+    --rule RULE
+        Quy tắc điều khiển khi log trùng từ khóa.
+        Có thể truyền nhiều --rule.
+
+    --duration DURATION
+        Tự dừng sau số giây.
+
+Giải thích tham số chính:
+
+    --mode attach
+        Không spawn app, chỉ attach vào tiến trình đang chạy.
+
+    --device tcp:127.0.0.1:27042
+        Kết nối tới Gadget listen trên cùng thiết bị.
+
+    --rule
+        Khi log trùng từ khóa thì gọi RPC điều khiển.
+
+Ví dụ nhiều rule và lưu log:
+
+    python3 patchx remote-observe com.example.app \
+      --hook outputs/behavior/generated_hook.js \
+      --mode attach \
+      --device tcp:127.0.0.1:27042 \
+      --log outputs/behavior/remote.jsonl \
+      --save outputs/behavior/remote_final.json \
+      --duration 120 \
+      --rule "match=vip_check,false;command=set_vip_status;value=true" \
+      --rule "match=ssl_pin,error;command=toggle_ssl_bypass;value=true" \
+      --rule "match=login,required;command=set_login_bypass;value=true"
+
+Các lệnh RPC hỗ trợ:
+
+    set_vip_status
+    toggle_ssl_bypass
+    override_api_response
+    set_fake_logged_in
+    set_login_bypass
+    set_skip_login_gate
+
+======================================================================
+VIII. XEM LOG GADGET
+======================================================================
+
+Dùng logcat nếu có adb:
+
+    adb logcat -s Gadget:V Frida:V
+
+Hoặc lọc theo package:
+
+    adb logcat | grep -E "Gadget|Frida"
+
+======================================================================
+IX. LỖI THƯỜNG GẶP
+======================================================================
+
+1. Pipeline báo thiếu config
+
+   - Truyền --config đúng path/URL.
+   - Chạy behavior-pipeline trước để sinh config.
+
+2. Không tải được gadget từ GitHub
+
+   - Tải sẵn libgadget.so.
+   - Dùng:
+
+         --gadget-path ./libgadget.so
+
+3. Build báo thiếu apktool
+
+   - Cài apktool.
+   - Hoặc kiểm tra `apktool` nằm trong PATH.
+
+4. Loader không chèn được
+
+   - Pipeline đã hỗ trợ tìm `smali`, `smali_classes2`, `smali_classes3`...
+   - Hỗ trợ method `.locals 0` bằng cách tự nâng lên `.locals 1`.
+
+5. Gadget listen không attach được
+
+   - Mở app trước khi attach.
+   - Kiểm tra đúng package.
+   - Kiểm tra cổng 127.0.0.1:27042.
+   - Dùng `--mode attach`.
+
+======================================================================
+X. VÍ DỤ END-TO-END KHÔNG ROOT
+======================================================================
+
+    # 1. Giải mã APK nếu chưa có cây
+    python3 patchx apk-prepare app.apk -o apk_trees
+
+    # 2. Phân tích và sinh config Frida
+    python3 patchx behavior-pipeline apk_trees \
+      -o outputs/behavior \
+      --flow all \
+      --min-score 0.7
+
+    # 3. Nhúng gadget script
+    python3 patchx gadget-pipeline app.apk \
+      -o outputs/behavior/gadget \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-mode script \
+      --yes
+
+    # 4. Cài APK đã ký
+    adb install -r outputs/behavior/gadget/app_signed.apk
+
+    # 5. Mở app: hook tự chạy
+
+======================================================================
+GHI CHÚ
+======================================================================
+
+- Chế độ script không cần frida-tools hay frida-server.
+- Chế độ listen cần frida-tools để chạy remote-observe.
+- Không tự ý dùng --no-sign nếu muốn cài APK trực tiếp.

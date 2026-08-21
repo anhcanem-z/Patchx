@@ -1,0 +1,3 @@
+<manifest package="com.example.evidence">
+  <application android:name=".App" />
+</manifest>

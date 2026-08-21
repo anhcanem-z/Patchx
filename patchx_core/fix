@@ -1,0 +1,62 @@
+import os
+import re
+
+# Tên file gốc của bạn (thay đổi nếu cần)
+INPUT_FILE = "cli.py"  
+OUTPUT_FILE = "cli_fixed.py"
+
+def fix_cli_code():
+    if not os.path.exists(INPUT_FILE):
+        print(f"[-] Không tìm thấy file {INPUT_FILE}. Vui lòng kiểm tra lại tên file.")
+        return
+
+    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    print("[+] Đang kiểm tra và sửa lỗi...")
+
+    # 1. Sửa import thừa/trùng lặp cục bộ (như import json as _json)
+    content = re.sub(r'^\s*import json as _json\n', '', content, flags=re.MULTILINE)
+
+    # 2. Xử lý đoạn cuối file bị hỏng (Lỗi SyntaxError ngắt chừng tại suggest-apk)
+    # Tìm đoạn bắt đầu bị lỗi gần cuối file
+    bad_syntax_pattern = r'p = sub\.add_parser\("suggest-apk".*?$'
+    
+    # Đoạn hoàn chỉnh chuẩn hóa cho suggest-apk và hàm main()
+    fixed_ending = '''p = sub.add_parser("suggest-apk", help="Gợi ý chuỗi patch theo APK thật (T4 — danh mục + kho combo thành công)")
+    p.add_argument("thu_muc", help="Thư mục chứa patch .zip")
+    p.add_argument("cay_apk", help="Cây APK đã giải mã")
+    p.add_argument("-o", "--output", default=None, help="Thư mục xuất báo cáo/gợi ý")
+    p.add_argument("--top", type=int, default=5, help="Số lượng gợi ý hàng đầu")
+    p.set_defaults(func=cmd_suggest_apk)
+
+    args = parser.parse_args(argv)
+    if hasattr(args, "func"):
+        return args.func(args)
+    
+    parser.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+    # Nếu phát hiện đoạn lỗi ở cuối file, tiến hành thay thế
+    if re.search(bad_syntax_pattern, content, flags=re.DOTALL):
+        content = re.sub(r'p = sub\.add_parser\("suggest-apk".*', fixed_ending, content, flags=re.DOTALL)
+        print("[+] Đã sửa lỗi SyntaxError ở lệnh suggest-apk và đóng ngoặc main().")
+    else:
+        # Nếu cuối file thiếu khối if __name__ == '__main__'
+        if 'if __name__ == "__main__":' not in content:
+            content += "\n\nif __name__ == '__main__':\n    sys.exit(main())\n"
+            print("[+] Đã thêm khối thực thi main().")
+
+    # Ghi ra file mới
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    print(f"[✓] HOÀN TẤT! File đã được sửa và lưu tại: {OUTPUT_FILE}")
+
+if __name__ == "__main__":
+    fix_cli_code()

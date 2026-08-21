@@ -1,0 +1,62 @@
+*** Begin Patch
+*** Update File: tests/run_tests.py
+@@
+             except ValueError:
+                 check("rodata-apply: chặn %s" % list(bad)[-1], True)
+     finally:
+         shutil.rmtree(d, ignore_errors=True)
+ 
++
++def test_smart_patch():
++    """smart-patch: tái dùng detector behavior có sẵn, chống R8/D8."""
++    import patchx_core.behavior.smart_patch as sp
++    d = tempfile.mkdtemp(dir=TMP, prefix="patchx_smartpatch_")
++    try:
++        tree = os.path.join(d, "tree")
++        smali = os.path.join(tree, "smali", "com", "demo")
++        os.makedirs(smali)
++        with open(os.path.join(smali, "a.smali"), "w", encoding="utf-8") as f:
++            f.write(".class public Lcom/demo/a;\n"
++                    ".super Ljava/lang/Object;\n\n"
++                    ".method public a()Z\n"
++                    "    .registers 2\n"
++                    '    const-string v0, "premium"\n'
++                    "    invoke-virtual {v0}, Ljava/lang/String;->"
++                    "contains(Ljava/lang/CharSequence;)Z\n"
++                    "    move-result v0\n"
++                    "    return v0\n"
++                    ".end method\n")
++        plan = sp.build_smart_plan(tree)
++        stats = plan["stats"]
++        check("smart-patch: detector phát hiện hành vi obfuscated R8/D8",
++              stats["behaviors"] == 1 and stats["targets_ranked"] >= 1,
++              str(stats))
++        t = plan["targets"][0]
++        check("smart-patch: target dùng đúng từ detector có sẵn",
++              t["kind"] == "obfuscated-feature-unlock" and t["r8_d8"]
++              and t["obfuscated_name"] and t["method"] == "a"
++              and t["patch_mode"] == "force_boolean_true", str(t))
++        out = os.path.join(d, "out")
++        rep = sp.apply_smart_patch(tree, out_dir=out, min_score=0.5,
++                                   apply=True)
++        patched = rep["patched"]
++        check("smart-patch: --apply patch + backup tự động",
++              patched["success"] >= 1 and patched["failed"] == 0
++              and os.path.isdir(os.path.join(out, "backup"))
++              and len(patched["backup_files"]) >= 1, str(patched))
++        content = open(os.path.join(smali, "a.smali"),
++                       encoding="utf-8").read()
++        check("smart-patch: smali bị ép về true (0x1)",
++              "const/4 v0, 0x1" in content, content)
++        md = open(os.path.join(out, "smart_patch_report.md"),
++                  encoding="utf-8").read()
++        check("smart-patch: báo cáo md + json sinh đủ",
++              os.path.isfile(os.path.join(out, "smart_patch_report.md"))
++              and os.path.isfile(os.path.join(out, "smart_patch_plan.json"))
++              and "R8/D8" in md, "")
++    finally:
++        shutil.rmtree(d, ignore_errors=True)
++
+ 
+ def main():
+*** End Patch

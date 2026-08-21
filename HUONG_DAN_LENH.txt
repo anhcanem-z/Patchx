@@ -1,0 +1,262 @@
+HƯỚNG DẪN SỬ DỤNG PATCHX
+========================
+
+Cách chạy chung:
+
+    python3 patchx <LỆNH> [TÙY CHỌN]
+
+Lưu ý:
+- Tên lệnh và tên tùy chọn phải gõ đúng chữ không dấu.
+- Tham số CÂY_APK là thư mục APK đã giải mã bằng apktool.
+- Tham số THƯ_MỤC_PATCH là thư mục chứa các file patch .zip/.txt.
+
+Muốn xem trợ giúp riêng từng lệnh:
+
+    python3 patchx <LỆNH> --help
+
+======================================================================
+TÀI LIỆU RIÊNG CHO NHÓM BEHAVIOR + FRIDA + GADGET
+======================================================================
+
+Nhóm lệnh liên quan đến phân tích hành vi, sinh hook Frida và nhúng
+Frida Gadget đã được tách sang file:
+
+    HUONG_DAN_BEHAVIOR_FRIDA.txt
+
+Hướng dẫn riêng cho Frida Gadget:
+
+    HUONG_DAN_GADGET.txt
+
+Các lệnh trong file riêng:
+
+    behavior
+    targets
+    behavior-pipeline
+    remote-map
+    remote-patch
+    remote-observe
+    frida
+    gadget-pipeline
+
+File đó mô tả chi tiết:
+- Công dụng, đầu vào, đầu ra và các tùy chọn của từng lệnh.
+- Quy trình cũ chạy Frida thông thường.
+- Quy trình mới nhúng Frida Gadget không cần root.
+- Cách tạo APK Gadget, kích hoạt, nghe lệnh và gỡ lỗi.
+- Cách chọn target theo danh sách như 1,3,5 hoặc all.
+- Cách dùng remote-observe điều khiển hành vi từ xa.
+
+======================================================================
+DANH SÁCH LỆNH NGUỒN CŨ, CÔNG DỤNG VÀ VÍ DỤ
+======================================================================
+
+1. scan
+   Công dụng: Quét thư mục patch, in tóm tắt và phát hiện file trùng nội dung.
+   Ví dụ:
+       python3 patchx scan thu_muc_patch --recursive
+
+2. index
+   Công dụng: Tạo index.json và report.md cho thư mục patch.
+   Ví dụ:
+       python3 patchx index thu_muc_patch -o index_out --recursive
+
+3. dupes
+   Công dụng: Phát hiện các patch trùng nội dung theo hash.
+   Ví dụ:
+       python3 patchx dupes thu_muc_patch
+
+4. manifest
+   Công dụng: Tạo MANIFEST.json cho toàn bộ cây thư mục patch.
+   Ví dụ:
+       python3 patchx manifest thu_muc_patch
+
+5. verify-manifest
+   Công dụng: Xác minh thư mục hiện tại so với MANIFEST.json đã có.
+   Ví dụ:
+       python3 patchx verify-manifest thu_muc_patch --manifest MANIFEST.json
+
+6. report
+   Công dụng: Tạo báo cáo HTML cho kho patch.
+   Ví dụ:
+       python3 patchx report thu_muc_patch -o report.html
+
+7. ci
+   Công dụng: Chạy dây chuyền CI: audit -> upgrade -> optimize -> combo -> simulate.
+   Ví dụ:
+       python3 patchx ci thu_muc_patch -o ci_out
+
+8. golden
+   Công dụng: Chạy cổng Golden Build để kiểm tra hai golden test.
+   Ví dụ:
+       python3 patchx golden -o golden_out --fw
+
+9. validate
+   Công dụng: Xác thực cây APK, gồm Smali, XML và DEX.
+   Ví dụ:
+       python3 patchx validate outputs/apk/apk-trees/app --level NORMAL
+
+10. apk-prepare
+    Công dụng: Giải mã APK bằng apktool thành cây thư mục.
+    Ví dụ:
+        python3 patchx apk-prepare app.apk -o outputs/apk/apk-trees/app
+
+11. audit
+    Công dụng: Kiểm tra kiến trúc từng patch và tìm lỗi an toàn.
+    Ví dụ:
+        python3 patchx audit thu_muc_patch
+
+12. upgrade
+    Công dụng: Nâng cấp patch an toàn: metadata, thẻ dòng, gộp trùng.
+    Ví dụ:
+        python3 patchx upgrade thu_muc_patch -o upgraded
+
+13. optimize
+    Công dụng: Gộp patch, loại bỏ phần trùng lặp.
+    Ví dụ:
+        python3 patchx optimize thu_muc_patch -o optimized
+
+14. apply
+    Công dụng: Áp patch lên cây APK.
+    Ví dụ:
+        python3 patchx apply patch.zip outputs/apk/apk-trees/app --dry-run
+
+15. test
+    Công dụng: Chạy bộ kiểm tra nội bộ.
+    Ví dụ:
+        python3 patchx test
+
+16. dex-budget
+    Công dụng: Ước lượng giới hạn DEX refs khi thêm mã.
+    Ví dụ:
+        python3 patchx dex-budget outputs/apk/apk-trees/app patch.txt
+
+17. preflight
+    Công dụng: Kiểm tra trước khi áp patch.
+    Ví dụ:
+        python3 patchx preflight patch.zip outputs/apk/apk-trees/app
+
+18. fuzz
+    Công dụng: Tấn công fuzz/chaos parser và engine.
+    Ví dụ:
+        python3 patchx fuzz --rounds 100
+
+19. failure
+    Công dụng: Quản lý cơ sở dữ liệu Failure Intelligence.
+    Ví dụ:
+        python3 patchx failure --action record
+
+20. baseline
+    Công dụng: Chụp và so sánh baseline performance/metrics.
+    Ví dụ:
+        python3 patchx baseline --action capture
+
+21. coverage
+    Công dụng: Đo độ bao phủ của patch lên APK.
+    Ví dụ:
+        python3 patchx coverage patch.zip outputs/apk/apk-trees/app
+
+22. suggest
+    Công dụng: Tự đề xuất cải tiến cho patch.
+    Ví dụ:
+        python3 patchx suggest patch.zip outputs/apk/apk-trees/app
+
+23. analyze
+    Công dụng: Phân tích ngữ nghĩa cây APK.
+    Ví dụ:
+        python3 patchx analyze outputs/apk/apk-trees/app
+
+24. model
+    Công dụng: Tạo mô hình trung gian app_model.json cho cây APK.
+    Ví dụ:
+        python3 patchx model outputs/apk/apk-trees/app -o app_model.json
+
+25. semantic-plan
+    Công dụng: Đánh giá kế hoạch ngữ nghĩa cho APK.
+    Ví dụ:
+        python3 patchx semantic-plan plan.json outputs/apk/apk-trees/app
+
+26. acceptance
+    Công dụng: Chạy tiêu chí nghiệm thu V2.
+    Ví dụ:
+        python3 patchx acceptance fixtures
+
+27. knowledge
+    Công dụng: Quản lý kho tri thức nghiệm thu.
+    Ví dụ:
+        python3 patchx knowledge --action query
+
+28. plan-compile
+    Công dụng: Tạo transaction nháp từ plan V2.
+    Ví dụ:
+        python3 patchx plan-compile plan_v2.json outputs/apk/apk-trees/app -o draft.json
+
+29. plan-preflight
+    Công dụng: Đánh giá lại draft transaction trên cây mới.
+    Ví dụ:
+        python3 patchx plan-preflight draft.json outputs/apk/apk-trees/app
+
+30. diff-apk
+    Công dụng: Sinh patch từ sự khác biệt giữa hai APK hoặc hai cây APK.
+    Ví dụ:
+        python3 patchx diff-apk apk_goc.apk apk_da_sua.apk -o diff.patch
+
+31. suggest-apk
+    Công dụng: Gợi ý patch theo APK thật.
+    Ví dụ:
+        python3 patchx suggest-apk outputs/apk/apk-trees/app thu_muc_patch
+
+32. suggest-llm
+    Công dụng: Gợi ý patch theo ý định người dùng.
+    Ví dụ:
+        python3 patchx suggest-llm thu_muc_patch "bo kiem tra root"
+
+33. roadmap
+    Công dụng: Sinh lộ trình thực thi patch.
+    Ví dụ:
+        python3 patchx roadmap thu_muc_patch outputs/apk/apk-trees/app
+
+34. simulate
+    Công dụng: Mô phỏng áp patch lên cây APK.
+    Ví dụ:
+        python3 patchx simulate thu_muc_patch --apk outputs/apk/apk-trees/app
+
+35. selfcheck
+    Công dụng: Tự kiểm tra module và kho patch.
+    Ví dụ:
+        python3 patchx selfcheck .
+
+36. combo
+    Công dụng: Tạo các bộ gộp patch.
+    Ví dụ:
+        python3 patchx combo thu_muc_patch --auto
+
+37. ui
+    Công dụng: Mở giao diện dòng lệnh TUI.
+    Ví dụ:
+        python3 patchx ui
+
+38. stats
+    Công dụng: Thống kê tổng quan kho patch.
+    Ví dụ:
+        python3 patchx stats thu_muc_patch
+
+39. clean
+    Công dụng: Dọn dẹp tệp và thư mục tạm.
+    Ví dụ:
+        python3 patchx clean thu_muc_goc
+
+======================================================================
+GHI CHÚ
+======================================================================
+
+- Muốn phân tích hành vi, sinh hook Frida hoặc nhúng Gadget, xem:
+  HUONG_DAN_BEHAVIOR_FRIDA.txt
+- Muốn hướng dẫn chi tiết riêng Frida Gadget, xem:
+  HUONG_DAN_GADGET.txt
+- Muốn build APK, máy cần có apktool.
+- Muốn cài APK lên thiết bị, cần apksigner/zipalign hoặc dùng adb.
+- Các tên lệnh và tùy chọn trong tài liệu phải gõ đúng chữ không dấu.
+
+- `patchx smart-patch CÂY [--apply]` — lập kế hoạch/áp patch smali
+  thông minh: tái dùng detector behavior (kể cả nhánh obfuscated-*),
+  chống R8/D8; `--apply` ghi đè smali (backup tự động).

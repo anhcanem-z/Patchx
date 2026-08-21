@@ -1,0 +1,25 @@
+{
+  "schema": "patchx.semantic-plan/v2",
+  "goal": "Truy vết gate boolean trong fixture",
+  "targets": [
+    {
+      "name": "gate",
+      "selector": {
+        "all": [
+          {"return_type": "Z"},
+          {"min_branch_count": 0}
+        ],
+        "near_entry": {"max_distance": 2}
+      },
+      "policy": {
+        "min_score": 100,
+        "max_accepted": 1,
+        "on_ambiguous": "STOP"
+      }
+    }
+  ],
+  "operation_intent": [
+    {"type": "TRACE", "target": "gate"}
+  ],
+  "verification": ["preflight", "validate", "build", "runtime"]
+}

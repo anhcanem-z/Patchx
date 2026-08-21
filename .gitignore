@@ -1,0 +1,15 @@
+.git/
+__pycache__/
+*.pyc
+*.bak
+outputs/
+dist/
+.patchx/
+combos_llm/
+frida-termux-build/
+
+.codex/
+Apks/
+libso/
+libso_clean/
+patchx_core/patchx_core/

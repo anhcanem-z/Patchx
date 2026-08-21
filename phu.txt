@@ -1,0 +1,108 @@
+─────────────────────────
+
+• Đã tích hợp kỹ thuật ro.data patching thành 2 lệnh mới của
+  toolkit, kèm test và docs.
+
+  Chức năng mới
+
+  - patchx rodata-find FILE.SO --string "CHUỖI" — tự tìm RVA của
+    chuỗi trong .rodata/.data của file .so (thay bước tra tay bằng
+    IDA/Ghidra); không truyền --string thì liệt kê section ALLOC;
+    -o ghi JSON.
+
+  - patchx rodata-patch FILE.SO --string CHUỖI --new CHUỖI_MỚI
+    [tùy chọn] — sinh script Frida (outputs/behavior/
+    rodata_patch.js mặc định) thực hiện đúng nguyên lý bạn mô tả:
+    Module.findBaseAddress → base.add(RVA) →
+    Memory.allocUtf8String → Memory.protect rwx → ghi inline hoặc
+    đổi con trỏ → khôi phục quyền trang gốc.
+
+  - Chế độ: --mode inline|pointer|both, --offset (RVA thủ công),
+    --ptr-offset (ô nhớ giữ con trỏ cũ — an toàn nhất, độ dài vô
+    hạn), --runtime-scan (quét RAM module, không cần RVA tĩnh),
+    --allow-overflow, --no-restore, --config cho nhiều patch.
+
+  - Cải tiến so với script mẫu: tự căn lề trang (Memory.pageSize),
+    kiểm tra dung lượng trước khi ghi inline (chặn tràn dữ liệu kế
+    bên), tự đọc quyền trang hiện tại qua Process.getRangeInfo rồi
+    khôi phục đúng (thường r--, không phải r-x), gửi sự kiện send
+    để remote-observe theo dõi.
+
+  File đã thay đổi
+
+  - patchx_core/behavior/rodata_patcher.py:1 — module mới:
+    ELF32/64 parser (section header + fallback PT_LOAD),
+    find_string_offsets, sinh script Frida.
+
+  - patchx_core/cli.py — đăng ký cmd_rodata_find/cmd_rodata_patch
+    + subparser.
+
+  - tests/run_tests.py:1764 — test_rodata_patcher 18/18 pass
+    (ELF64 + ELF32 giả, script inline/pointer/runtime-scan, báo
+    lỗi nhiều vị trí).
+
+  - Docs: HUONG_DAN_BEHAVIOR_FRIDA.txt (mục 12), README.md,
+    outputs/README.md, AGENTS.md, AGENTS_TRANG_THAI.md;
+    sync_patchx.py + behavior/__init__.py; đóng gói lại dist bản 5
+    (11.32 MB).
+
+  Ghi chú môi trường
+
+  - python3 trên Termux bị hỏng (binary 7.5KB lỗi ELF header, sửa
+    lúc 12:21 hôm nay) — ngoài phạm vi ghi của toolkit nên chưa
+    sửa; chạy bằng python3.12 patchx ... (đã ghi vào
+    AGENTS_TRANG_THAI.md).
+
+  - Bộ test đầy đủ vẫn dừng ở lỗi có sẵn test_bypass_advisor
+    (schema cách_công_cụ/cach_cong_cu); test_remote_trace_force
+    cũng tham chiếu thư mục bypass_plus/ không tồn tại trong bản
+    này — không liên quan thay đổi vừa rồi.
+
+  Ví dụ nhanh:
+
+  python3.12 patchx rodata-find lib/x86_64/libnative-lib.so
+  --string "https://api.old-server.com/v1"
+  python3.12 patchx rodata-patch lib/x86_64/libnative-lib.so \
+    --string "https://api.old-server.com/v1" \
+    --new "https://my-custom-api-server-domain.com/v2/endpoint"
+    --mode both \
+    -o outputs/behavior/rodata_patch.js
+  frida -U -f <package> -l outputs/behavior/rodata_patch.js
+  
+  
+Để tăng độ chính xác cho công cụ quét này, chúng tôi nâng cấp thuật toán theo hướng:
+
+· Lọc nhiễu thông minh (Smart Noise Filtering): Kết hợp phân tích ngữ nghĩa (semantic analysis) thay vì chỉ dùng regex, tự động phân biệt chuỗi nhạy cảm thật sự (API keys, token, nội dung mã hóa) với chuỗi log, comment hay dữ liệu mẫu.
+· Phân tích luồng dữ liệu tĩnh (Static Data-flow Analysis): Truy vết các biến và tham số từ .rodata/.data đến hàm JNI, phát hiện chuỗi bị ghép/xor/encode động, không bỏ sót endpoint được tạo dựng từ nhiều phần nhỏ.
+· Xác thực chéo offset (Cross-validation): Với mỗi offset JNI nghi vấn, hệ thống sẽ kiểm tra ngữ cảnh gọi (caller/callee) và đối chiếu với danh sách hàm hệ thống, từ đó loại bỏ tới 99% cảnh báo giả (false positive).
+· Cơ chế trọng số dựa trên mức độ nguy hiểm (Risk-based Weighting): Không đánh đồng mọi chuỗi tìm thấy; chuỗi chứa param động, tên miền lạ hoặc header đặc biệt được ưu tiên gắn cờ cao. Kết quả cuối cùng được tổng hợp thành báo cáo mức độ tin cậy (Confidence Score) từ 0–100%, đảm bảo 100% dữ liệu đưa ra đều có bằng chứng kèm theo và có thể tái tạo.
+
+
+
+dung roi chi dang loc sap xep lai cach hien thi de tim va hanh
+  de dang hon thay vi nhu bay gio moi plugin co rat nhieu module
+  khi can plugin goi chuc nang plugin khac thi phai trai qua kieu
+   lenh chong lenh mudule chat chong len module roi nhin  khong
+  con biet la lenh hien thi cai gi luon minh can sap xep phan bo
+  1 noi hien thi sap xep cac file cac lenh co logic co trat tu
+  khong hien thi cac luong pineline code ma hien thi danh sach da
+   cac muc tieu khong can dieu khien patchx bang scipt ma nguon
+  hay cac dong lenh ma van hanh bang cach goi don gian vi du
+  "danh sach hanh vi bang file + hien thi danh sach cac hanh vi
+  cac diem thay doi hanh vi dua tren yeu cau de thay doi chinh
+  xac hanh vi
+
+  deepseek-chat default
+  
+   dung roi chi dang loc sap xep lai cach hien thi de tim va hanh
+  de dang hon thay vi nhu bay gio moi plugin co rat nhieu module
+  khi can plugin goi chuc nang plugin khac thi phai trai qua kieu
+   lenh chong lenh mudule chat chong len module roi nhin  khong
+  con biet la lenh hien thi cai gi luon minh can sap xep phan bo
+  1 noi hien thi sap xep cac file cac lenh co logic co trat tu
+  khong hien thi cac luong pineline code ma hien thi danh sach da
+   cac muc tieu khong can dieu khien patchx bang scipt ma nguon
+  hay cac dong lenh ma van hanh bang cach goi don gian vi du
+  "danh sach hanh vi bang file + hien thi danh sach cac hanh vi
+  cac diem thay doi hanh vi dua tren yeu cau de thay doi chinh
+  xac hanh vi va dam bao ty le thanh cong"

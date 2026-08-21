@@ -1,0 +1,957 @@
+HƯỚNG DẪN CHI TIẾT NHÓM LỆNH
+BEHAVIOR + FRIDA + GADGET
+========================
+
+File này tách riêng toàn bộ lệnh liên quan đến phân tích hành vi,
+sinh hook Frida, điều khiển từ xa và nhúng Frida Gadget.
+
+Muốn xem danh sách lệnh nguồn cũ còn lại:
+
+    HUONG_DAN_LENH.txt
+
+Muốn xem hướng dẫn chi tiết riêng Frida Gadget:
+
+    HUONG_DAN_GADGET.txt
+
+Muốn xem trợ giúp từng lệnh:
+
+    python3 patchx <LỆNH> --help
+
+======================================================================
+I. TỔNG QUAN
+======================================================================
+
+Hiện có hai luồng chính:
+
+1. Luồng Frida thông thường
+   - Cần frida-tools, frida-server hoặc thiết bị đã kết nối.
+   - Dùng behavior-pipeline để tạo target và sinh hook.
+   - Dùng frida hoặc remote-observe để nạp hook vào tiến trình.
+
+2. Luồng Frida Gadget không root
+   - Không cần frida-server.
+   - Dùng gadget-pipeline nhúng libgadget.so vào APK.
+   - Gadget tự nạp script hoặc mở cổng listen để remote-observe attach.
+
+File đầu ra quan trọng của behavior-pipeline:
+
+    review_plan.json
+        Giữ toàn bộ target, kể cả vị trí chi tiết:
+        source_file, class, method, line,
+        api_line, branch_line, api_instruction, branch_instruction.
+
+    frida_hooks_config.json
+        Chỉ giữ target có thể hook bằng Frida.
+        Tự loại target rỗng class/method hoặc không có frida_script.
+
+    generated_hook.js
+        Script Frida đã gộp các frida_script hợp lệ.
+
+    loader_hook.json
+        File mô tả loader và lệnh chạy kèm.
+
+    frida_loader.js
+        Loader Node.js, đọc loader_hook.json rồi thực thi hook.
+
+======================================================================
+II. HƯỚNG DẪN CHI TIẾT LỆNH SOURCE CŨ
+======================================================================
+
+----------------------------------------------------------------------
+1. behavior
+----------------------------------------------------------------------
+
+Công dụng:
+- Quét cây APK đã giải mã.
+- Phát hiện hành vi dựa trên bằng chứng.
+- In danh sách hành vi, tên flow và độ tin cậy.
+
+Cú pháp:
+
+    python3 patchx behavior <CÂY_APK>
+
+Ví dụ:
+
+    python3 patchx behavior outputs/apk/apk-trees/app
+
+Đầu vào:
+- CÂY_APK: thư mục đã giải mã bằng apktool.
+
+Đầu ra:
+- In ra màn hình.
+- Không ghi file JSON.
+
+----------------------------------------------------------------------
+2. targets
+----------------------------------------------------------------------
+
+Công dụng:
+- Xác định các điểm mục tiêu cần xem xét thay đổi.
+- In class, method, dòng, lý do và bằng chứng.
+
+Cú pháp:
+
+    python3 patchx targets <CÂY_APK>
+
+Ví dụ:
+
+    python3 patchx targets outputs/apk/apk-trees/app
+
+Khi nào dùng:
+- Khi chỉ muốn xem nhanh target mà chưa cần sinh hook hay sửa Smali.
+
+----------------------------------------------------------------------
+3. behavior-pipeline
+----------------------------------------------------------------------
+
+Công dụng:
+- Chạy luồng đầy đủ:
+
+    detector -> cfg -> target -> hook.json -> frida -> loader -> APK
+
+Cú pháp:
+
+    python3 patchx behavior-pipeline <CÂY_APK> [TÙY CHỌN]
+
+Các tùy chọn:
+
+    -o, --out-dir OUT_DIR
+        Thư mục xuất artifact.
+        Mặc định: outputs/behavior
+
+    --flow {integrity,authentication,monetization,network_ssl,privacy_security,dynamic_code,environment,all}
+        Chọn luồng hành vi cần phân tích.
+        Mặc định: all
+
+    --auto-patch
+        Sửa Smali trực tiếp vào cây APK.
+
+    --build-apk
+        Build lại APK sau khi sửa.
+        Cần apktool.
+
+    --interactive
+        Hiện danh sách target để người dùng chọn.
+        Có thể nhập 1,3,5 hoặc all hoặc q.
+
+    --min-score MIN_SCORE
+        Ngưỡng bằng chứng tối thiểu.
+        Mặc định: 0.65
+
+Ví dụ:
+
+    python3 patchx behavior-pipeline outputs/apk/apk-trees/app --flow all --interactive
+
+    python3 patchx behavior-pipeline outputs/apk/apk-trees/app \
+      --flow monetization --auto-patch --build-apk
+
+    python3 patchx behavior-pipeline outputs/apk/apk-trees/app \
+      -o outputs/behavior --flow all --min-score 0.7
+
+Giải thích luồng:
+- Detector quét hành vi.
+- CFG tách artifact nhánh điều kiện.
+- Target biến hành vi + CFG thành vị trí cụ thể.
+- Target được xếp hạng theo điểm và bằng chứng.
+- review_plan.json luôn được ghi trước bước chọn.
+- Nếu dùng --interactive, chỉ target được chọn mới đi tiếp.
+- _execute_targets sinh frida_hooks_config.json, generated_hook.js,
+  loader_hook.json và frida_loader.js.
+
+----------------------------------------------------------------------
+4. remote-map
+----------------------------------------------------------------------
+
+Công dụng:
+- Tạo bản đồ flag điều khiển từ xa.
+- Hỗ trợ luồng quyết định, luồng dữ liệu hoặc bản đồ flag đầy đủ.
+
+Cú pháp:
+
+    python3 patchx remote-map <CÂY_APK> [TÙY CHỌN]
+
+Các tùy chọn:
+
+    --flow
+        Xuất luồng quyết định.
+
+    --dataflow
+        Xuất luồng dữ liệu.
+
+    --no-atomic
+        Bỏ qua AtomicBoolean khi xây bản đồ.
+
+    --top TOP
+        Số flag hiển thị nhanh.
+
+    -o O
+        Ghi JSON kết quả.
+
+Ví dụ:
+
+    python3 patchx remote-map outputs/apk/apk-trees/app -o remote_map.json
+
+    python3 patchx remote-map outputs/apk/apk-trees/app --flow -o decision_flow.json
+
+    python3 patchx remote-map outputs/apk/apk-trees/app --dataflow -o data_flow.json
+
+----------------------------------------------------------------------
+5. remote-patch
+----------------------------------------------------------------------
+
+Công dụng:
+- Từ remote map, sinh patch ép flag theo yêu cầu.
+
+Cú pháp:
+
+    python3 patchx remote-patch <REMOTE_MAP> [TÙY CHỌN]
+
+Các tùy chọn:
+
+    --set "Lcls;->fld:Z=true"
+        Thiết lập một flag.
+        Có thể truyền nhiều lần.
+
+    --force OVERRIDES_JSON
+        Đọc danh sách override từ JSON.
+
+    -o O
+        File patch xuất ra.
+
+Ví dụ:
+
+    python3 patchx remote-patch remote_map.json \
+      --set "Lcom/app/Prefs;->isVip:Z=true" -o force_vip.patch
+
+----------------------------------------------------------------------
+6. remote-observe
+----------------------------------------------------------------------
+
+Công dụng:
+- Quan sát sự kiện Frida.
+- Lưu log JSONL.
+- Điều khiển hành vi theo quy tắc điều kiện từ xa.
+
+Cú pháp:
+
+    python3 patchx remote-observe <PACKAGE> [TÙY CHỌN]
+
+Các tùy chọn:
+
+    --hook HOOK
+        Đường dẫn generated_hook.js.
+
+    --device DEVICE
+        Frida device id.
+        Mặc định: USB.
+
+    --mode {spawn,attach}
+        spawn: cần frida-server, spawn app rồi inject.
+        attach: dành cho Frida Gadget listen; app phải đang chạy.
+
+    --log LOG
+        File log quan sát JSONL.
+
+    --save SAVE
+        Lưu toàn bộ sự kiện JSON khi kết thúc.
+
+    --rule RULE
+        Quy tắc điều khiển.
+        Có thể truyền nhiều lần.
+
+    --duration DURATION
+        Số giây quan sát trước khi tự dừng.
+
+Ví dụ spawn qua frida-server:
+
+    python3 patchx remote-observe com.example.app \
+      --hook outputs/behavior/generated_hook.js \
+      --mode spawn \
+      --log outputs/behavior/observation.jsonl \
+      --rule "match=vip_check,false;command=set_vip_status;value=true" \
+      --rule "match=login,required;command=set_login_bypass;value=true" \
+      --duration 60
+
+Cú pháp quy tắc:
+
+    match=từ_khóa_1,từ_khóa_2;command=tên_lệnh;value=true|false
+
+Các lệnh điều khiển hỗ trợ:
+
+    set_vip_status
+    toggle_ssl_bypass
+    override_api_response
+    set_fake_logged_in
+    set_login_bypass
+    set_skip_login_gate
+
+----------------------------------------------------------------------
+7. frida
+----------------------------------------------------------------------
+
+Công dụng:
+- Sinh generated_hook.js từ file JSON chứa target.
+
+Cú pháp:
+
+    python3 patchx frida -i <INPUT_JSON> [-o OUTPUT_JS]
+
+Ví dụ:
+
+    python3 patchx frida -i review_plan.json -o generated_hook.js
+
+Định dạng đầu vào:
+- JSON dạng list targets.
+- Hoặc dict có khóa targets hoặc patches.
+- Nếu không phải JSON, bộ sinh vẫn tạo script cơ bản:
+  Crypto Interceptor + Generic SSL Pinning Bypass.
+
+======================================================================
+III. HƯỚNG DẪN CHI TIẾT LỆNH MỚI
+======================================================================
+
+----------------------------------------------------------------------
+8. gadget-pipeline
+----------------------------------------------------------------------
+
+Công dụng:
+- Pipeline mới nhúng Frida Gadget vào APK hoặc cây APK.
+- Không cần root, không cần frida-server.
+- Tự tìm/xác nhận config.
+- Thực thi cấu hình Smali.
+- Cập nhật manifest.
+- Tải hoặc nhận gadget.so.
+- Nhúng gadget.so, gadget config, gadget script.
+- Build và ký APK.
+
+Chi tiết kích hoạt, cấu hình, cài đặt và gỡ lỗi:
+
+    HUONG_DAN_GADGET.txt
+
+Cú pháp:
+
+    python3 patchx gadget-pipeline <APK_HOẶC_CÂY_APK> [TÙY CHỌN]
+
+Tham số chính:
+
+    input
+        File .apk hoặc thư mục cây APK đã giải mã.
+
+    -o, --out-dir OUT_DIR
+        Thư mục xuất APK và artifact.
+        Mặc định: outputs/behavior/gadget
+
+    --config CONFIG
+        Path hoặc URL file cấu hình Frida/Gadget.
+        Có thể truyền:
+          - outputs/behavior/frida_hooks_config.json
+          - https://example.com/frida-gadget.config.json
+
+    --gadget-url GADGET_URL
+        URL file .so.xz nếu muốn dùng bản khác.
+
+    --gadget-path GADGET_PATH
+        Path file libgadget.so local nếu đã tải sẵn.
+
+    --gadget-mode {script,listen}
+        script: Gadget tự nạp script trong APK.
+        listen: Gadget lắng nghe 127.0.0.1:27042.
+
+    --yes
+        Tự động xác nhận config đầu tiên tìm thấy.
+
+    --keep-tree
+        Giữ cây APK đã giải mã để kiểm tra.
+
+    --no-sign
+        Không ký APK.
+
+    --keystore KEYSTORE
+        Keystore dùng để ký.
+
+    --ks-pass KS_PASS
+        Mật khẩu keystore.
+        Mặc định: android
+
+Ví dụ chế độ script:
+
+    python3 patchx gadget-pipeline app.apk \
+      -o outputs/behavior/gadget \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-mode script \
+      --yes \
+      --keep-tree
+
+Ví dụ chế độ listen:
+
+    python3 patchx gadget-pipeline app.apk \
+      -o outputs/behavior/gadget \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-mode listen \
+      --yes
+
+Ví dụ dùng gadget local:
+
+    python3 patchx gadget-pipeline outputs/apk/apk-trees/app \
+      -o outputs/behavior/gadget \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-path ./libgadget.so \
+      --gadget-mode script
+
+Luồng bên trong:
+
+    1. Nếu input là .apk, giải mã bằng apktool.
+    2. Tìm file config.
+       - Nếu có --config thì dùng trực tiếp.
+       - Nếu không, tìm frida_hooks_config.json,
+         frida-gadget.config.json, libgadget.config.so, loader_hook.json.
+       - Khi tìm thấy, hỏi xác nhận:
+
+           Chon so, `y` de dung [1], `n` de nhap duong dan:
+
+       - Nếu chọn n, nhập đường dẫn URL/JSON.
+       - Nếu có --yes, tự dùng file đầu tiên.
+    3. Đọc config hooks.
+    4. Thực thi cấu hình Smali cho target có patch_mode hỗ trợ.
+    5. Thêm android:extractNativeLibs="true" vào manifest.
+    6. Tải hoặc dùng gadget.so.
+    7. Nhúng:
+         lib/arm64-v8a/libgadget.so
+         lib/arm64-v8a/libgadget.config.so
+         lib/arm64-v8a/libgadget.script.so
+    8. Chèn System.loadLibrary("gadget") vào launcher/application.
+    9. Build bằng apktool, zipalign và apksigner.
+
+File đầu ra:
+
+    outputs/behavior/gadget/app_signed.apk
+    outputs/behavior/gadget/libgadget.so
+    outputs/behavior/gadget/gadget_debug.keystore
+    outputs/behavior/gadget/work/... (nếu dùng --keep-tree)
+
+----------------------------------------------------------------------
+9. remote-observe cho Gadget listen
+----------------------------------------------------------------------
+
+Đây là phần mở rộng mới cho remote-observe.
+
+Ví dụ attach vào Gadget trên cùng máy:
+
+    python3 patchx remote-observe com.example.app \
+      --hook outputs/behavior/generated_hook.js \
+      --mode attach \
+      --device tcp:127.0.0.1:27042 \
+      --duration 60
+
+Giải thích:
+- Gadget listen mở cổng 127.0.0.1:27042.
+- --device tcp:127.0.0.1:27042 giúp Frida client nối qua TCP.
+- --mode attach giúp không spawn app mới, chỉ attach vào tiến trình
+  đang chạy hoặc tìm tiến trình chứa package/gadget.
+
+----------------------------------------------------------------------
+10. Cải tiến target và xuất Frida
+----------------------------------------------------------------------
+
+Quy tắc mới:
+- review_plan.json giữ toàn bộ target và vị trí chi tiết.
+- frida_hooks_config.json chỉ giữ target hook được.
+- generated_hook.js chỉ sinh từ target hook được.
+- Target có class/method rỗng hoặc frida_script rỗng bị loại khỏi
+  config Frida nhưng vẫn còn trong review_plan.json.
+
+Nhận diện đăng nhập mở rộng:
+- Flow `authentication` quét login, sign-in, token, session và xác thực.
+- Ba chiến lược tự động:
+  - `fake_logged_in`: ép `isLoggedIn()`/`isAuthenticated()`/`hasSession()`
+    trả về true để giả lập đã đăng nhập.
+  - `force_login_success`: ép `login()`/`authenticate()` trả về thành công.
+  - `skip_login_gate`: bỏ qua `requireLogin()`/`showLogin()` để không mở
+    màn hình đăng nhập.
+- Các chiến lược này có cả bản patch Smali và Frida hook tương ứng.
+
+Ví dụ kiểm tra:
+
+    python3 - <<'PY'
+    import json
+    review = json.load(open("outputs/behavior/review_plan.json"))
+    hooks = json.load(open("outputs/behavior/frida_hooks_config.json"))
+    print("review targets:", len(review.get("targets", [])))
+    print("hook targets  :", len(hooks.get("hooks", [])))
+    PY
+
+----------------------------------------------------------------------
+11. Từ khóa quét hành vi mở rộng
+----------------------------------------------------------------------
+
+Detector đã mở rộng để nhận diện logic hiện đại, không chỉ `isVip`,
+`isPro`, `isPremium`:
+
+- Mở khóa tính năng/premium
+  - `hasActiveSubscription`, `isSubscriptionActive`, `getSubscriptionTier`
+  - `entitlement`, `entitled`, `unlocked`, `paywall`, `membership`
+  - `access_level`, `tier`, `plan_type`, `trial`, `lifetime`
+  - `feature_flag`, `feature_enabled`, `unlocked_features`
+
+- Login / API token
+  - `Authorization`, `Bearer`, `X-Api-Key`, `x-api-key`, `apikey`
+  - `access_token`, `refresh_token`, `id_token`, `session_id`
+  - `client_id`, `client_secret`, `oauth`, `jwt`, `openid`
+  - `token_type`, `expires_in`, `grant_type`, `x-session-token`
+
+- SSL Pinning / chứng chỉ
+  - `SSLContext`, `SSLSocketFactory`, `X509TrustManager`
+  - `checkServerTrusted`, `checkValidity`, `CertPathValidator`
+  - `networkSecurityConfig`, `cleartext`, `CertificatePinner`
+  - `SHA-256`, `pinning`, `trustAnchors`, `TLS`
+
+- Toàn vẹn / chữ ký
+  - `getSigningCertificateHistory`, `getApkContentsSigners`
+  - `signingInfo`, `sourceDir`, `publicSourceDir`, `codePath`
+  - `CRC32`, `checksum`, `test-keys`, `release-keys`
+
+- R8 / D8 obfuscation
+  - Tên method ngắn `a`, `ab`, `a0` nếu thân method có nội dung
+    feature/token/API/SSL/integrity/billing.
+  - `Base64`, `SecretKeySpec`, `Cipher`, `MessageDigest`, AES/DES/RSA.
+  - Chuỗi encoded dài, crypto API trong method obfuscated.
+
+Hành vi được ghi vào `outputs/behavior/frida_hooks_config.json` cùng vị trí
+class/method/line để `behavior-pipeline` và Frida hook xử lý tiếp.
+
+======================================================================
+IV. QUY TRÌNH THỰC TẾ ĐƯỢC KHUYẾN NGHỊ
+======================================================================
+
+----------------------------------------------------------------------
+A. Quy trình source cũ có frida-server
+----------------------------------------------------------------------
+
+    # 1. Giải mã APK
+    python3 patchx apk-prepare app.apk -o outputs/apk/apk-trees/app
+
+    # 2. Phân tích và chọn target
+    python3 patchx behavior-pipeline outputs/apk/apk-trees/app \
+      -o outputs/behavior \
+      --flow all \
+      --min-score 0.7 \
+      --interactive
+
+    # Nếu chỉ muốn phân tích luồng đăng nhập
+    python3 patchx behavior-pipeline outputs/apk/apk-trees/app \
+      -o outputs/behavior_login \
+      --flow authentication \
+      --min-score 0.65
+
+    # Khi chương trình hỏi, nhập ví dụ:
+    #   1,3,5
+
+    # 3. Xem hook sinh ra
+    python3 patchx frida -i outputs/behavior/frida_hooks_config.json \
+      -o outputs/behavior/generated_hook.js
+
+    # 4. Quan sát và điều khiển
+    python3 patchx remote-observe com.example.app \
+      --hook outputs/behavior/generated_hook.js \
+      --mode spawn \
+      --rule "match=vip_check,false;command=set_vip_status;value=true" \
+      --rule "match=login,required;command=set_login_bypass;value=true"
+
+----------------------------------------------------------------------
+B. Quy trình mới nhúng Gadget không root
+----------------------------------------------------------------------
+
+    # 1. Tạo cây APK nếu chưa có
+    python3 patchx apk-prepare app.apk -o outputs/apk/apk-trees/app
+
+    # 2. Phân tích hành vi
+    python3 patchx behavior-pipeline outputs/apk/apk-trees/app \
+      -o outputs/behavior \
+      --flow all \
+      --min-score 0.7
+
+    # 3. Kiểm tra target chi tiết
+    # Mở outputs/behavior/review_plan.json
+    # Kiểm tra outputs/behavior/frida_hooks_config.json
+
+    # 4. Nhúng Gadget chế độ tự nạp script
+    python3 patchx gadget-pipeline app.apk \
+      -o outputs/behavior/gadget \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-mode script \
+      --yes \
+      --keep-tree
+
+    # 5. Cài APK đã ký
+    # Dùng file:
+    #   outputs/behavior/gadget/app_signed.apk
+
+    # 6. Nếu muốn điều khiển live, dùng chế độ listen
+    python3 patchx gadget-pipeline app.apk \
+      -o outputs/behavior/gadget_listen \
+      --config outputs/behavior/frida_hooks_config.json \
+      --gadget-mode listen \
+      --yes
+
+    # 7. Mở app, sau đó attach quan sát
+    python3 patchx remote-observe com.example.app \
+      --hook outputs/behavior/generated_hook.js \
+      --mode attach \
+      --device tcp:127.0.0.1:27042 \
+      --rule "match=vip_check,false;command=set_vip_status;value=true" \
+      --rule "match=login,required;command=set_login_bypass;value=true" \
+      --duration 60
+
+----------------------------------------------------------------------
+12. rodata-find + rodata-patch
+----------------------------------------------------------------------
+
+Công dụng:
+- Patch chuỗi trong phân vùng .rodata/.data.rel.ro của file .so trực tiếp
+  trên RAM khi app đang chạy, bằng Frida — KHÔNG sửa file .so/.elf gốc.
+- Không giới hạn độ dài chuỗi mới (khác Hex Patch truyền thống phải giữ
+  nguyên độ dài để không phá cấu trúc file).
+
+Nguyên lý hoạt động:
+1. Tìm RVA (Relative Offset) của chuỗi gốc trong .rodata:
+   - Tự động: python3 patchx rodata-find <FILE.SO> --string "<chuỗi>"
+   - Hoặc lấy từ IDA Pro/Ghidra rồi khai báo --offset cho rodata-patch.
+2. Script Frida lấy Base Address của module khi đã nạp
+   (Module.findBaseAddress), địa chỉ thật = base + RVA.
+3. Cấp phát vùng nhớ mới chứa chuỗi mới (Memory.allocUtf8String).
+4. Mở quyền ghi cho trang chứa chuỗi cũ (Memory.protect rwx) — không gọi
+   sẽ bị SIGSEGV vì .rodata chỉ đọc (r--).
+5. Ghi theo 2 chiến lược:
+   - inline : ghi đè trực tiếp chuỗi mới lên vị trí cũ; script tự kiểm tra
+     dung lượng, nếu chuỗi mới dài hơn thì bỏ qua trừ khi --allow-overflow.
+   - pointer: đổi NativePointer trong ô nhớ đang giữ con trỏ tới chuỗi cũ
+     (--ptr-offset) sang vùng nhớ mới — an toàn tuyệt đối với dữ liệu xung
+     quanh, độ dài chuỗi mới vô hạn.
+6. Khôi phục quyền trang ban đầu (thường r--) để tránh bị phát hiện/lỗi.
+
+Lệnh tìm RVA:
+
+    python3 patchx rodata-find <FILE.SO> --string "<chuỗi gốc>"
+
+Ví dụ:
+
+    python3 patchx rodata-find lib/x86_64/libnative-lib.so \
+        --string "https://api.old-server.com/v1"
+
+Kết quả in rva=0x... (địa chỉ tương đối để base.add(rva) lúc runtime),
+file=0x... (offset trong file), section, size.
+
+Không truyền --string thì liệt kê các section ALLOC (rodata/data...) để xem
+nhanh file có gì.
+
+Lệnh sinh script Frida:
+
+    python3 patchx rodata-patch <FILE.SO> [TÙY CHỌN]
+
+Các tùy chọn:
+
+    --string "<chuỗi gốc>"
+        Tự tìm RVA trong file; nếu chuỗi xuất hiện nhiều vị trí thì dùng
+        --offset để chọn đích chính xác.
+
+    --new "<chuỗi mới>"
+        Chuỗi thay thế, độ dài tùy ý (bắt buộc khi không dùng --config).
+
+    --offset 0x1A2B3
+        RVA lấy từ IDA/Ghidra — bỏ qua bước tự tìm.
+
+    --ptr-offset 0x2C000
+        RVA ô nhớ đang giữ con trỏ tới chuỗi cũ (dùng cho mode pointer).
+
+    --module <TÊN_MODULE>
+        Tên thư viện khi nạp (mặc định lấy tên file .so).
+
+    --mode inline|pointer|both
+        inline  = ghi đè trực tiếp (kiểm tra dung lượng).
+        pointer = đổi con trỏ (an toàn nhất, độ dài vô hạn).
+        both    = làm cả hai nếu có --ptr-offset (mặc định).
+
+    --runtime-scan
+        Không dùng RVA tĩnh: quét RAM module tìm chuỗi gốc rồi ghi inline
+        (hữu ích khi .so bị obfuscate hoặc đổi giữa các bản).
+
+    --allow-overflow
+        Cho phép inline ghi dài hơn dung lượng chuỗi cũ (rủi ro tràn dữ
+        liệu kế bên trong .rodata).
+
+    --no-restore
+        Không khôi phục quyền trang sau khi ghi.
+
+    --config <FILE.JSON>
+        Nhiều patch một lượt: {"patches": [...], "module": "..."} hoặc list.
+
+    -o <FILE.JS>
+        File JS đầu ra (mặc định outputs/behavior/rodata_patch.js).
+
+Ví dụ cơ bản (tự tìm RVA, ghi đè trực tiếp):
+
+    python3 patchx rodata-patch lib/x86_64/libnative-lib.so \
+        --string "https://api.old-server.com/v1" \
+        --new "https://my-custom-api-server-domain.com/v2/endpoint" \
+        --mode inline
+
+Ví dụ nâng cao (RVA từ IDA + đổi con trỏ, độ dài vô hạn):
+
+    python3 patchx rodata-patch lib/x86_64/libnative-lib.so \
+        --offset 0x1A2B3 \
+        --ptr-offset 0x2C000 \
+        --new "https://my-custom-api-server-domain.com/v2/endpoint" \
+        --mode pointer
+
+Ví dụ config nhiều patch:
+
+    python3 patchx rodata-patch lib/arm64-v8a/libnative-lib.so \
+        --config rodata_patches.json -o outputs/behavior/rodata_patch.js
+
+rodata_patches.json:
+
+    {
+      "module": "libnative-lib.so",
+      "patches": [
+        {"old_string": "https://api.old-server.com/v1",
+         "new_string": "https://new.example.com/v2/endpoint",
+         "mode": "both", "ptr_rva": "0x2C000"},
+        {"old_string": "https://backup.old-server.com/v1",
+         "new_string": "https://backup.new.example.com/",
+         "mode": "inline"}
+      ]
+    }
+
+Chạy script Frida (cần frida-tools + frida-server hoặc gadget):
+
+    frida -U -f <PACKAGE> -l outputs/behavior/rodata_patch.js
+
+    # hoặc quan sát từ xa qua remote-observe:
+    python3 patchx remote-observe <PACKAGE> \
+        --hook outputs/behavior/rodata_patch.js --mode attach
+
+Ghi chú an toàn:
+- Luôn kiểm tra dung lượng trước khi inline; ưu tiên pointer khi có thể.
+- Khôi phục quyền trang sau khi ghi để tránh phát hiện.
+- .rodata thường có quyền r-- (không phải r-x); script tự đọc quyền hiện tại
+  qua Process.getRangeInfo rồi khôi phục đúng giá trị gốc.
+
+----------------------------------------------------------------------
+13. rodata-apply — chèn trực tiếp vào file .so (patch file)
+----------------------------------------------------------------------
+
+Công dụng:
+- Ghi chuỗi mới TRỰC TIẾP vào file .so/.elf (không cần Frida runtime).
+- Khác rodata-patch (Frida RAM): patch file bị GIỚI HẠN độ dài — chuỗi mới
+  không được dài hơn dung lượng chuỗi cũ (tính tới NUL), nếu không sẽ phá
+  cấu trúc file. Khi vượt: báo lỗi trừ khi --allow-overflow (rủi ro).
+- Luôn sao lưu file gốc trước khi ghi (mặc định outputs/backup/rodata_apply/).
+
+Cú pháp:
+
+    python3 patchx rodata-apply <FILE.SO> --string "<chuỗi gốc>" \
+        --new "<chuỗi mới>" [TÙY CHỌN]
+
+Các tùy chọn:
+
+    --offset 0x1A2B3
+        RVA lấy từ IDA/Ghidra — bỏ qua bước tự tìm (--string).
+
+    --allow-overflow
+        Cho phép ghi dài hơn dung lượng chuỗi cũ (rủi ro tràn dữ liệu kế bên).
+
+    --no-backup
+        Không tạo bản backup.
+
+    --backup-dir THƯ_MỤC
+        Thư mục backup (mặc định outputs/backup/rodata_apply/).
+
+    --out FILE
+        Ghi bản đã patch ra file mới thay vì ghi đè file gốc.
+
+    --config FILE.JSON
+        Nhiều patch một lượt: {"patches": [...]} hoặc list (mỗi patch:
+        old_string hoặc rva + new_string).
+
+Ví dụ:
+
+    python3 patchx rodata-apply lib/arm64-v8a/liblsplant.so \
+        --string "map::at:  key not found" --new "map::at: patched"
+
+Chú ý:
+- Không hỗ trợ mode pointer / runtime-scan khi patch file (pointer cần
+  relocation lúc nạp, runtime-scan cần RAM) — dùng rodata-patch cho Frida.
+- Muốn thay chuỗi DÀI HƠN mà không phá file: dùng rodata-patch --mode
+  pointer (script Frida đổi con trỏ sang vùng nhớ mới, độ dài vô hạn).
+
+----------------------------------------------------------------------
+14. rodata-bypass — THƯ MỤC MODULE RIÊNG + MAIN HIỂN THỊ RIÊNG
+----------------------------------------------------------------------
+
+Tách biệt khỏi CLI cũ (patchx rodata-*): 1 thư mục module riêng
+`patchx_core/rodata_bypass/` + 1 main hiển thị riêng, gồm 2 thành phần:
+
+  [1] LUỒNG TĨNH   (--flow static)  — StaticBypassFlow
+      - Tìm RVA chuỗi (find) + ghi đè TRỰC TIẾP vào file .so (apply).
+      - Không cần Frida; có backup trước khi ghi.
+      - Giới hạn: chuỗi mới không dài hơn chuỗi cũ (trừ --allow-overflow).
+
+  [2] LUỒNG ĐỘNG   (--flow dynamic) — DynamicBypassFlow
+      - Tìm RVA chuỗi (find) + sinh script Frida patch TRÊN RAM (generate).
+      - Chuỗi mới độ dài vô hạn (inline/pointer/both/runtime-scan).
+      - Chạy bằng frida / gadget-pipeline / remote-observe.
+
+Thư mục module:
+
+    patchx_core/rodata_bypass/
+        __init__.py      export StaticBypassFlow, DynamicBypassFlow, main
+        static_flow.py   StaticBypassFlow (find/sections/apply/run)
+        dynamic_flow.py  DynamicBypassFlow (find/sections/generate/run)
+        main.py          main hiển thị riêng (banner 2 luồng)
+        __main__.py      cho phép python3 -m patchx_core.rodata_bypass
+
+Chạy (2 cách tương đương):
+
+    python3 -m patchx_core.rodata_bypass <FILE.SO> --flow static \
+        --string "CHUỖI CŨ" --new "CHUỖI MỚI"
+    python3 rodata_bypass_main.py <FILE.SO> --flow static \
+        --string "CHUỖI CŨ" --new "CHUỖI MỚI"
+
+Ví dụ luồng tĩnh (patch file):
+
+    python3 rodata_bypass_main.py lib/arm64-v8a/liblsplant.so \
+        --flow static --string "map::at:  key not found" \
+        --new "map::at: patched"
+
+Ví dụ luồng động (Frida RAM, chuỗi mới dài hơn được):
+
+    python3 rodata_bypass_main.py lib/arm64-v8a/liblsplant.so \
+        --flow dynamic --string "map::at:  key not found" \
+        --new "https://my-custom-api-server-domain.com/v2/endpoint" \
+        --mode both --ptr-offset 0x2c000
+
+Tùy chọn chung: --offset (RVA thủ công), --allow-overflow, --sections
+(liệt kê section ALLOC), --out (static: file mới; dynamic: script .js).
+Luồng động thêm: --mode inline|pointer|both, --ptr-offset, --runtime-scan.
+
+======================================================================
+V. BẢNG ÁNH XẠ NHANH
+======================================================================
+
+    Lệnh cũ                      Lệnh mới / bổ sung
+    ---------------------------- -------------------------------------
+    behavior                     Giữ nguyên
+    targets                      Giữ nguyên
+    behavior-pipeline            Cải tiến xuất target chi tiết
+    remote-map                   Giữ nguyên
+    remote-patch                 Giữ nguyên
+    remote-observe               Thêm --mode, --device TCP
+    frida                        Giữ nguyên
+    chưa có                      gadget-pipeline
+    chưa có                      rodata-find / rodata-patch
+    chưa có                      rodata-apply (patch thẳng file .so)
+    chưa có                      rodata_bypass_main.py (module + main riêng)
+
+======================================================================
+VI. XỬ LÝ LỖI THƯỜNG GẶP
+======================================================================
+
+1. Không thấy hook script
+
+    [patchx] Khong thay hook script: ...
+
+   Cách xử lý:
+   - Kiểm tra đúng đường dẫn generated_hook.js.
+   - Chạy lại behavior-pipeline trước.
+
+2. Không tìm thấy config trong gadget-pipeline
+
+   Cách xử lý:
+   - Truyền --config đường dẫn/URL tường minh.
+   - Kiểm tra config có khóa hooks hoặc interaction.
+
+3. Không tải được gadget từ GitHub
+
+   Cách xử lý:
+   - Tải sẵn libgadget.so.
+   - Chạy với --gadget-path ./libgadget.so.
+
+4. Thiếu apktool khi build
+
+    Khong tim thay apktool.
+
+   Cách xử lý:
+   - Cài apktool trước.
+   - Hoặc dùng --no-sign nếu chỉ muốn tạo cây/artifacts.
+
+5. Thiếu thư viện frida-tools
+
+    Vui long cai dat thu vien frida-tools: pip install frida-tools
+
+   Cách xử lý:
+   - Cài frida-tools.
+   - Hoặc dùng gadget-pipeline, không cần frida client cho chế độ script.
+
+6. Gadget listen không thấy process
+
+   Cách xử lý:
+   - Mở app trước khi chạy remote-observe --mode attach.
+   - Kiểm tra gadget config là interaction type listen.
+   - Dùng đúng --device tcp:127.0.0.1:27042.
+
+======================================================================
+GHI CHÚ
+======================================================================
+
+- Vị trí chi tiết của target luôn nằm trong review_plan.json.
+- Frida config chỉ lọc bớt target không hook được, không xóa thông tin
+  gốc khỏi review_plan.json.
+- gadget-pipeline phù hợp máy không root, không frida-server.
+
+======================================================================
+13. SMART-SCAN + START-SCAN — QUÉT THÔNG MINH LIB .so
+======================================================================
+
+- smart-scan: quét CHUỖI trong .rodata/.data của MỘT file .so/.elf theo 4
+  trụ cột:
+    1) Lọc nhiễu thông minh — phân loại NGỮ NGHĨA (api_key, token, secret,
+       endpoint, header, cipher, class JNI...) phân biệt với log/comment/
+       sample/symbol/library (nhiễu bị loại khỏi báo cáo chính).
+    2) Static Data-flow — truy vết tham chiếu từ mã (.text) tới chuỗi:
+       ADRP+ADD, LDR literal (ARM64), LEA rip / mov imm64 (x86_64), quét địa
+       chỉ tuyệt đối; gán từng ref vào hàm chứa (symbol table); phát hiện
+       chuỗi ghép/xor/encode động (dynamic_build).
+    3) Xác thực chéo offset — caller/callee qua đồ thị gọi (BL/CALL) +
+       symbol table; đối chiếu danh sách hàm hệ thống (std::, __cxa_*,
+       _GLOBAL__sub_I...) để loại cảnh báo giả (false positive); hàm JNI
+       nhận diện qua Java_*, JNI_OnLoad hoặc tên mangled chứa _JNIEnv.
+    4) Risk-based Weighting + Confidence Score 0-100 — cộng điểm khi có
+       param động, tên miền lạ, header đặc biệt, entropy cao, JNI tham
+       chiếu; giảm điểm khi hàm hệ thống/chuỗi ngắn; MỌI finding kèm
+       EVIDENCE + SHA-256 file (repro) để tái tạo.
+
+  Lệnh:
+    python3 patchx smart-scan FILE.SO [--min-risk 50] [--show-noise]
+    python3 patchx smart-scan FILE.SO -o report.json --md report.md
+    python3 patchx smart-scan --behaviors      # in từ điển hành vi
+
+- start-scan (alias start_scan): xử lý THƯ VIỆN .so HÀNG LOẠT — đầu vào APK
+  (tự trích lib/*.so, lọc --abi), thư mục chứa .so, hoặc file .so; quét từng
+  lib bằng smart-scan rồi TỔNG HỢP: top findings theo Confidence, bảng chi
+  tiết từng lib (sha256, refs, JNI, nhiễu). PHÂN CHIA: start-scan = native
+  .so; behavior = smali.
+
+  Lệnh:
+    python3 patchx start-scan APK [--abi arm64-v8a] [--min-risk 50]
+    python3 patchx start-scan THU_MUC_LIB
+    python3 patchx start-scan FILE.SO -o start_scan.json --md start_scan.md
+
+- Từ điển hành vi (giống ontology.py của behavior): patchx_core/behavior/
+  smart_ontology.py — SMART_BEHAVIORS: hardcoded_secret, endpoint_exposure,
+  dynamic_endpoint_build, sensitive_header, encoded_payload,
+  jni_class_reference, jni_flow_string, format_dynamic_param, path_exposure,
+  log_noise, sample_noise, symbol_noise, library_noise, other_behavior.
+  Mỗi finding trong JSON/Markdown đều gắn behavior id + label + gợi ý xử lý.
+
+- Đầu ra mặc định: outputs/behavior/smart_scan/ (*.json + *.md); nếu dùng
+  --keep-so, lib trích từ APK nằm tại outputs/behavior/smart_scan/so_extract/.

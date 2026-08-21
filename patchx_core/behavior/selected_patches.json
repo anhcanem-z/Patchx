@@ -1,0 +1,6 @@
+{
+  "patches": [
+    "Debug_information_and_hack_signature",
+    "patch_bypass_sigcheck_with_reflection"
+  ]
+}

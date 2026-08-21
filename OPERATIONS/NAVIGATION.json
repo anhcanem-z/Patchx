@@ -1,0 +1,85 @@
+{
+  "schema": "patchx.operations-navigation/v1",
+  "purpose": "Lớp điều hướng vận hành. Mọi target là dữ liệu gốc, không di chuyển hay sao chép.",
+  "groups": [
+    {
+      "id": "00_operations",
+      "role": "Quy tắc, trạng thái và hướng dẫn lệnh",
+      "targets": [
+        "../AGENTS.md",
+        "../AGENTS_TRANG_THAI.md",
+        "../README.md",
+        "../HUONG_DAN_LENH.txt",
+        "../HUONG_DAN_BEHAVIOR_FRIDA.txt",
+        "../HUONG_DAN_GADGET.txt"
+      ]
+    },
+    {
+      "id": "01_source_code",
+      "role": "CLI, lõi, behavior, công cụ và script dev",
+      "targets": [
+        "../patchx",
+        "../patchx_core",
+        "../patchx_toolkit.py",
+        "../tools",
+        "../sync_patchx.py",
+        "../sync_imports.py",
+        "../upgrade_behavior.py"
+      ]
+    },
+    {
+      "id": "02_patch_data",
+      "role": "APK đầu vào, patch chuẩn hóa và combo",
+      "targets": [
+        "../Apks",
+        "../upgraded",
+        "../combos",
+        "../combos_auto",
+        "../hook_remote_data_control",
+        "../demo-apk"
+      ]
+    },
+    {
+      "id": "03_apk_labs",
+      "role": "Cây giải mã và APK build/patch/gadget",
+      "targets": [
+        "../outputs/apk/apk-trees",
+        "../outputs/apk/apk-build",
+        "../outputs/apk/apk-patch",
+        "../outputs/behavior/gadget"
+      ]
+    },
+    {
+      "id": "04_quality",
+      "role": "Test, baseline và benchmark",
+      "targets": [
+        "../tests",
+        "../outputs/baseline",
+        "../outputs/bench"
+      ]
+    },
+    {
+      "id": "05_outputs",
+      "role": "File tự sinh và output theo module",
+      "targets": [
+        "../outputs",
+        "../dist"
+      ]
+    },
+    {
+      "id": "06_release_archive",
+      "role": "Bản lưu và bản gốc đã xóa",
+      "targets": [
+        "../outputs/backup",
+        "../.patchx/backup"
+      ]
+    },
+    {
+      "id": "07_mapping",
+      "role": "Bản đồ thư mục output",
+      "targets": [
+        "../outputs/README.md"
+      ]
+    }
+  ]
+}

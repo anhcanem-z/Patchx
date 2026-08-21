@@ -1,0 +1,110 @@
+{
+  "schema": "patchx.acceptance-case/v1",
+  "source_tree": ".",
+  "plans": [
+    {
+      "name": "caller_positive",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2",
+        "goal": "Caller hiện diện là bằng chứng bắt buộc",
+        "targets": [{
+          "name": "gate",
+          "selector": {"all": [
+            {"return_type": "Z"},
+            {"requires_caller": "Lcom/example/evidence/App;->onCreate()V"}
+          ]},
+          "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}
+        }],
+        "operation_intent": [{"type": "TRACE", "target": "gate"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      },
+      "expected_verdict": "READY_FOR_PREFLIGHT",
+      "expected_method": "Lcom/example/evidence/Gate;->isEnabled()Z"
+    },
+    {
+      "name": "caller_negative",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2",
+        "goal": "Caller thiếu phải chặn",
+        "targets": [{"name": "gate", "selector": {"all": [
+          {"return_type": "Z"}, {"requires_caller": "Lcom/example/evidence/Other;->onCreate()V"}
+        ]}, "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}}],
+        "operation_intent": [{"type": "TRACE", "target": "gate"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      }, "expected_verdict": "NO_CONFIDENT_TARGET"
+    },
+    {
+      "name": "callee_positive",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2", "goal": "Callee hiện diện là bằng chứng bắt buộc",
+        "targets": [{"name": "caller", "selector": {"all": [
+          {"return_type": "V"}, {"parameters": []},
+          {"requires_call": "Lcom/example/evidence/Gate;->isEnabled()Z"}
+        ]}, "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}}],
+        "operation_intent": [{"type": "TRACE", "target": "caller"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      }, "expected_verdict": "READY_FOR_PREFLIGHT",
+      "expected_method": "Lcom/example/evidence/App;->onCreate()V"
+    },
+    {
+      "name": "callee_negative",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2", "goal": "Callee thiếu phải chặn",
+        "targets": [{"name": "caller", "selector": {"all": [
+          {"return_type": "V"}, {"parameters": []},
+          {"requires_call": "Lcom/example/evidence/Gate;->missing()Z"}
+        ]}, "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}}],
+        "operation_intent": [{"type": "TRACE", "target": "caller"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      }, "expected_verdict": "NO_CONFIDENT_TARGET"
+    },
+    {
+      "name": "field_read_positive",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2", "goal": "Đọc field là bằng chứng bắt buộc",
+        "targets": [{"name": "reader", "selector": {"all": [
+          {"return_type": "Z"}, {"requires_field_read": "Lcom/example/evidence/Gate;->enabled:Z"}
+        ]}, "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}}],
+        "operation_intent": [{"type": "TRACE", "target": "reader"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      }, "expected_verdict": "READY_FOR_PREFLIGHT",
+      "expected_method": "Lcom/example/evidence/Gate;->isEnabled()Z"
+    },
+    {
+      "name": "field_read_negative",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2", "goal": "Field đọc thiếu phải chặn",
+        "targets": [{"name": "reader", "selector": {"all": [
+          {"return_type": "Z"}, {"requires_field_read": "Lcom/example/evidence/Gate;->missing:Z"}
+        ]}, "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}}],
+        "operation_intent": [{"type": "TRACE", "target": "reader"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      }, "expected_verdict": "NO_CONFIDENT_TARGET"
+    },
+    {
+      "name": "field_write_positive",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2", "goal": "Ghi field là bằng chứng bắt buộc",
+        "targets": [{"name": "writer", "selector": {"all": [
+          {"return_type": "V"}, {"parameters": ["Z"]},
+          {"requires_field_write": "Lcom/example/evidence/Gate;->enabled:Z"}
+        ]}, "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}}],
+        "operation_intent": [{"type": "TRACE", "target": "writer"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      }, "expected_verdict": "READY_FOR_PREFLIGHT",
+      "expected_method": "Lcom/example/evidence/Gate;->setEnabled(Z)V"
+    },
+    {
+      "name": "field_write_negative",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2", "goal": "Field ghi thiếu phải chặn",
+        "targets": [{"name": "writer", "selector": {"all": [
+          {"return_type": "V"}, {"parameters": ["Z"]},
+          {"requires_field_write": "Lcom/example/evidence/Gate;->missing:Z"}
+        ]}, "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}}],
+        "operation_intent": [{"type": "TRACE", "target": "writer"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      }, "expected_verdict": "NO_CONFIDENT_TARGET"
+    }
+  ]
+}

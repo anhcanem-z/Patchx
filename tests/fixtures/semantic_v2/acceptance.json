@@ -1,0 +1,48 @@
+{
+  "schema": "patchx.acceptance-case/v1",
+  "source_tree": "source",
+  "obfuscated_tree": "obfuscated",
+  "obfuscation_variants": [
+    {"name": "register", "tree": "obfuscated_register"},
+    {"name": "line", "tree": "obfuscated_line"},
+    {"name": "noise", "tree": "obfuscated_noise"}
+  ],
+  "plans": [
+    {
+      "name": "gate_ready",
+      "plan": "plan_v2.json",
+      "expected_verdict": "READY_FOR_PREFLIGHT",
+      "expected_method": "Lcom/example/semantic/License;->isEnabled()Z"
+    },
+    {
+      "name": "ambiguous_blocked",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2",
+        "goal": "Selector mơ hồ nhiều method void",
+        "targets": [{
+          "name": "void_gate",
+          "selector": {"all": [{"return_type": "V"}]},
+          "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}
+        }],
+        "operation_intent": [{"type": "TRACE", "target": "void_gate"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      },
+      "expected_verdict": "AMBIGUOUS_TARGET"
+    },
+    {
+      "name": "no_confident_blocked",
+      "plan": {
+        "schema": "patchx.semantic-plan/v2",
+        "goal": "Tìm lời gọi không tồn tại",
+        "targets": [{
+          "name": "absent_gate",
+          "selector": {"all": [{"requires_call": "Lcom/example/semantic/Absent;->x()V"}]},
+          "policy": {"min_score": 100, "max_accepted": 1, "on_ambiguous": "STOP"}
+        }],
+        "operation_intent": [{"type": "TRACE", "target": "absent_gate"}],
+        "verification": ["preflight", "validate", "build", "runtime"]
+      },
+      "expected_verdict": "NO_CONFIDENT_TARGET"
+    }
+  ]
+}
