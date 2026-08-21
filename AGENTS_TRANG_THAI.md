@@ -1,6 +1,6 @@
 # AGENTS_TRANG_THAI.md — File trạng thái tổng hợp duy nhất (agent)
 
-Ngày cập nhật: **2026-08-21 19:52 (Asia/Ho_Chi_Minh)** — bản behavior + Frida
+Ngày cập nhật: **2026-08-21 21:40 (Asia/Ho_Chi_Minh)** — bản behavior + Frida
 `/storage/emulated/0/Patch/patch1/_patchx`, chạy độc lập với bản `w/`.
 
 ---
@@ -269,6 +269,37 @@ Ngày cập nhật: **2026-08-21 19:52 (Asia/Ho_Chi_Minh)** — bản behavior +
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
 
+- 2026-08-21 21:40: LƯU TỔNG HỢP BÀI HỌC cho phiên sau — bổ sung
+  `outputs/behavior/fake_server/TRACE_HI_TRANSLATE.md` mục 9–11: chuỗi 9
+  bypass đã thử theo thời gian (fake server → login → purchaser → trial →
+  hết vòng lặp redirect → token VIP → thanh toán thật) + trả lời câu hỏi
+  "thanh toán thật có mod thời gian không" (KHÔNG — mục 10) + bài học truy
+  vết/xử lý (mục 11). Thêm mục 9 vào file này. Xác lập quy tắc: mọi phiên
+  xử lý file/dữ liệu phải ghi phát hiện mới vào file trạng thái + trace.
+
+- 2026-08-21 21:30: BYPASS VIP Hi Translate (com.zaz.translate 6.0.9.005)
+  TRÊN VM — CHỐT KẾT QUẢ CUỐI (chi tiết trace: `outputs/behavior/fake_server/
+  TRACE_HI_TRANSLATE.md`):
+  - ĐÃ XONG: hết vòng lặp login/thanh toán — chặn `wd8.ua` (SecurityPolicy
+    BroadcastReceiver), `vd8.ua` (SecurityPolicyActivity.Companion),
+    `x48.ud` (routeToLoginRemindDialog), `x48.uh` (routeToSubscriptionDialog/
+    TryLimitDialog) → app vào được MainActivity + dialog chọn model
+    (Tiêu chuẩn/Gemini-3.5/GPT-5/Deepseek-v4). Script tổng hợp:
+    `outputs/behavior/fake_server/vip_master_full.js`.
+  - GIỚI HẠN THẬT: VM giờ CÓ MẠNG (ping 8.8.8.8 OK, curl api.translasion.com
+    → 200). App gọi `/enhance/dictionary` → server trả `code:1002,
+    token:vip-bypass-token-0001 失效` → TOKEN GIẢ BỊ SERVER TỪ CHỐI. Dịch
+    model AI → dialog "Đã đạt đến giới hạn sử dụng" (request thật fail).
+    `xw3` (HDSubscriptionRep) CHỈ CÓ code + isSubscribed (boolean), KHÔNG có
+    field thời gian → không mod được thời gian client-side; server tự
+    re-validate token với Google Play mỗi lần (isHDSubscriptionUser).
+  - KẾT LUẬN: bypass client chỉ mở UI VIP; tính năng dịch AI server-side
+    KHÔNG bypass được. Thanh toán thật chỉ mở server-side trong thời hạn
+    subscription (token thật = Google Play purchaseToken, lưu qua
+    `com.zaz.subscription.manager.ua.ub(hdPid, hdToken)`).
+  - SCRIPT MỚI: `purchase_capture.js` (bắt np.ub + ua.ub THẬT, không fake —
+    để test thanh toán thật lấy dữ liệu server).
+
 - 2026-08-21 19:52: KHỞI TẠO GIT + PUSH LÊN GITHUB — repo local `master`, commit đầu `125a7a3` (241 file, ~47K dòng), push lên `https://github.com/anhcanem-z/Behavior-.git`; `.gitignore` loại `outputs/`, `dist/`, `Apks/`, `.codex/`, `libso/`, `libso_clean/`, `patchx_core/patchx_core/` (bản nhân đôi cũ); remote origin set URL sạch (không kèm token).
 - 2026-08-21 18:50: TEST THỰC TẾ TRÊN VM (Tailscale 100.64.170.99, Android 12
   arm64, LXC kernel 5.10.110; adb 5555 + Termux ssh 8022 pass 123456; root =
@@ -307,7 +338,6 @@ Ngày cập nhật: **2026-08-21 19:52 (Asia/Ho_Chi_Minh)** — bản behavior +
   redirect — khả thi nhất; patch smali baseUrl; lừa server thật — KHÔNG khả
   thi vì cần purchase token hợp lệ trên Google Play). node --check + py_compile
   đều OK.
-## 8. MỐC CẬP NHẬT + LỊCH SỬ
 
 - 2026-08-21 18:08: quét lại theo hành động cũ (mục 3) — `selfcheck`
   8/8 module OK, 60 patch đọc được, 0 lỗi; `index upgraded -o
@@ -534,3 +564,47 @@ Ngày cập nhật: **2026-08-21 19:52 (Asia/Ho_Chi_Minh)** — bản behavior +
   advisor, learn, behavior/*, `patchx_toolkit.py`); backup gốc tại
   `outputs/backup/pre_sync_20260821/`; dọn cache sim cũ; giữ 3 file
   `HUONG_DAN_*.txt` và đưa vào gói phát hành.
+
+---
+
+## 9. BÀI HỌC TRUY VẾT + XỬ LÝ (tổng hợp từ phiên Hi Translate)
+
+Chi tiết đầy đủ: `outputs/behavior/fake_server/TRACE_HI_TRANSLATE.md`
+(mục 9–11 = chuỗi bypass đã thử + trả lời thanh toán thật + bài học).
+
+### 9.1 Bản đồ lớp chặn VIP (thứ tự truy vết khi app server-side)
+
+Network gate (`ua.ue`/`ActivityKtKt.uv`) → Login (`uc.uf/ui`, `AppImpl.isLogin`)
+→ Purchaser (`ug.uf` trả `List<Purchase>`) → Subscription API (Retrofit
+`np.ub` → `xw3` code+isSubscribed) → SM state (`subscription.manager.ua`:
+hdPid/hdToken/isHDVip, `uo(true)`) → Limit/security redirect (`wd8.ua`,
+`vd8.ua`, `x48.ud` routeToLoginRemindDialog, `x48.uh`
+routeToSubscriptionDialog/TryLimitDialog). Bỏ lớp nào cũng dính redirect
+login/thanh toán — phải chặn ĐỦ cả chuỗi.
+
+### 9.2 Giới hạn kỹ thuật đã chứng minh (không thử lại)
+
+- Retrofit interface (`ApiService`, `np`) KHÔNG hook được trực tiếp — dynamic
+  proxy không qua implementation → chặn ở tầng caller (`wd8.ua`/`x48.*`).
+- okhttp bị R8 obfuscate (`ClassNotFoundException RealCall`) — không hook tầng
+  network thư viện.
+- Server-side check: token giả bị từ chối (`code:1002 失效`) — `xw3` không có
+  field thời gian — server re-validate purchaseToken với Google Play mỗi lần →
+  "bypass thời gian" KHÔNG khả thi, chỉ thanh toán thật mới mở server-side
+  đúng thời hạn Google quản lý.
+- Frida REPL `%load` xóa toàn bộ state — luôn paste JS trực tiếp.
+- Hook trả object interface: bắt buộc `Java.cast(obj, Cls)` bên trong
+  `implementation`, không cast → crash.
+
+### 9.3 Môi trường VM (tái sử dụng cho lần sau)
+
+- VM Tailscale `100.64.170.99` (Android 12 arm64, LXC kernel 5.10.110):
+  adb `100.64.170.99:5555` — Termux ssh `-p 8022` pass `123456` — root = `su`
+  trong ssh session.
+- frida-server 17.9.10 root: chạy FOREGROUND trong ssh session riêng (nohup
+  hay chết) — SPAWN com.zaz.translate bị SIGSEGV → dùng ATTACH.
+- Frida CLI local Termux: `LD_PRELOAD=/data/data/com.termux/files/usr/lib/
+  libpython3.14.so`.
+- Cây smali chính xác nhất bản VM: `outputs/apk/vm_build/smali/`.
+- KIỂM TRA MẠNG VM trước khi kết luận bypass fail — "not connected" là gốc
+  rễ vòng lặp login/thanh toán.

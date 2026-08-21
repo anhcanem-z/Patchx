@@ -56,6 +56,25 @@ File trạng thái tổng hợp duy nhất: `AGENTS_TRANG_THAI.md`.
   thư mục khi cấu trúc đổi.
 
 
+## GHI NHẬN KINH NGHIỆM SAU MỖI PHIÊN XỬ LÝ (bắt buộc)
+
+- MỌI thông tin/dữ liệu thu được khi xử lý file (smali, APK, lib .so, script
+  Frida, log VM/Logcat, UI thật, endpoint API, hành vi obfuscation...) là
+  NGUỒN KINH NGHIỆM QUÝ cho các phiên sau — phải ghi NGAY TRONG PHIÊN, không
+  chờ phiên sau.
+- Ghi vào `AGENTS_TRANG_THAI.md`: thêm mốc vào mục 8 (lịch sử) + bổ sung bài
+  học vào mục 9 (bản đồ truy vết, giới hạn đã chứng minh, môi trường) + cập
+  nhật dòng "Ngày cập nhật" ở đầu file.
+- Task có trace riêng thì ghi luôn vào file trace tương ứng (ví dụ
+  `outputs/behavior/fake_server/TRACE_HI_TRANSLATE.md`) — nếu chưa có, tạo
+  mới theo mẫu file này.
+- Mỗi bypass/patch đã thử (thành công LẪN thất bại) ghi tối thiểu: đã làm gì,
+  hook/patch ở đâu (class/method smali hoặc RVA .so), kết quả thật (log/UI/
+  exit code), vì sao fail — để phiên sau không thử lại đường chết.
+- Phát hiện mới sau MỖI lần xử lý phải được cập nhật thêm vào file trạng thái
+  trước khi kết thúc phiên (nguyên tắc "luôn luôn cập nhật phát hiện mới").
+
+
 ## ĐỒNG BỘ TỰ ĐỘNG KHI THÊM TÍNH NĂNG / NÂNG CẤP (bắt buộc)
 
 MỖI khi thêm tính năng mới, sửa lệnh, hoặc nâng cấp module — phải cập nhật
