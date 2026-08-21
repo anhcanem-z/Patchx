@@ -55,8 +55,35 @@ def apk_tree_count():
 
 
 def git_state():
-    # Bản này chưa có git — luôn trả trạng thái rỗng.
-    return "?", "?", []
+    try:
+        out = subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--is-inside-work-tree"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if out.returncode != 0 or out.stdout.strip() != "true":
+            return None
+        branch = subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip() or "?"
+        n = subprocess.run(
+            ["git", "-C", ROOT, "rev-list", "--count", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip() or "?"
+        head = subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip() or ""
+        remote = subprocess.run(
+            ["git", "-C", ROOT, "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip() or ""
+        desc = "{} commit{}".format(n, "" if n == "1" else "s")
+        if head:
+            desc += " (HEAD {})".format(head)
+        return branch, desc, remote
+    except Exception:
+        return None
 
 
 def status_date():
@@ -173,7 +200,13 @@ def main():
 
     print()
     print("A. THÔNG TIN CƠ BẢN")
-    print("- Git: chưa khởi tạo (thay đổi cần backup thủ công)")
+    g = git_state()
+    if g:
+        branch, desc, remote = g
+        print("- Git: đã khởi tạo — nhánh {} · {} · remote {}".format(
+            branch, desc, remote or "(chưa có remote)"))
+    else:
+        print("- Git: chưa khởi tạo (thay đổi cần backup thủ công)")
 
     baseline = read_json("outputs/baseline/metrics.json") or {}
     audit = read_json("outputs/audit/audit.json") or {}
