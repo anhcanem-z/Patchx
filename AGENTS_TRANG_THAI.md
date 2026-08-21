@@ -1,6 +1,6 @@
 # AGENTS_TRANG_THAI.md — File trạng thái tổng hợp duy nhất (agent)
 
-Ngày cập nhật: **2026-08-21 18:50 (Asia/Ho_Chi_Minh)** — bản behavior + Frida
+Ngày cập nhật: **2026-08-21 19:52 (Asia/Ho_Chi_Minh)** — bản behavior + Frida
 `/storage/emulated/0/Patch/patch1/_patchx`, chạy độc lập với bản `w/`.
 
 ---
@@ -68,7 +68,7 @@ Ngày cập nhật: **2026-08-21 18:50 (Asia/Ho_Chi_Minh)** — bản behavior +
 | APK đầu vào | **7 APK** trong `Apks/` (Live Translator 172M, Mango 91M, app.apk 79M, app.objection 71M, app1.apk 32M, dich.apk 122M, test.apks 153M) | 2026-08-21 |
 | Cây giải mã | **2 cây** trong `outputs/apk/apk-trees/` (app — 699M, app1 — 377M) | 2026-08-21 |
 | Combo thành công | **4 lượt** trong `outputs/combos/combos_success.json` (1 lượt 2026-08-20 + 3 lượt 2026-08-21) | 2026-08-21 |
-| Git | **không có** (chưa init; thay đổi không khôi phục được bằng git — cần backup thủ công) | 2026-08-21 |
+| Git | **đã init + push GitHub** — commit đầu `125a7a3` nhánh `master` → `anhcanem-z/Behavior-` (241 file; loại `outputs/`, `Apks/`, `dist/`, `.codex/`, `libso/`) | 2026-08-21 |
 | Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-10-20260821-143407.zip, 11.93 MB) | 2026-08-21 |
 
 ---
@@ -227,7 +227,7 @@ Ngày cập nhật: **2026-08-21 18:50 (Asia/Ho_Chi_Minh)** — bản behavior +
   nhầm secret; đã siết: token phải chứa chữ số hoặc `+/=`. Đường dẫn build
   (`out/llvm-project/...`) bị nhầm cipher → thêm PATH_PREFIXES kiểm tra
   trước entropy; tên mangled typeinfo (`NSt6__ndk1...`) → symbol noise.
-- Không có git → mọi thay đổi xóa/sửa nên backup thủ công vào `outputs/backup/`
+- Đã có git (repo local + remote GitHub `anhcanem-z/Behavior-` từ 2026-08-21); thay đổi chưa commit vẫn nên backup thủ công vào `outputs/backup/` trước khi thao tác.
   trước khi thao tác.
 
 ---
@@ -269,6 +269,7 @@ Ngày cập nhật: **2026-08-21 18:50 (Asia/Ho_Chi_Minh)** — bản behavior +
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
 
+- 2026-08-21 19:52: KHỞI TẠO GIT + PUSH LÊN GITHUB — repo local `master`, commit đầu `125a7a3` (241 file, ~47K dòng), push lên `https://github.com/anhcanem-z/Behavior-.git`; `.gitignore` loại `outputs/`, `dist/`, `Apks/`, `.codex/`, `libso/`, `libso_clean/`, `patchx_core/patchx_core/` (bản nhân đôi cũ); remote origin set URL sạch (không kèm token).
 - 2026-08-21 18:50: TEST THỰC TẾ TRÊN VM (Tailscale 100.64.170.99, Android 12
   arm64, LXC kernel 5.10.110; adb 5555 + Termux ssh 8022 pass 123456; root =
   `su` trong Termux VM; frida-server 17.9.10 root chạy qua ssh session giữ
