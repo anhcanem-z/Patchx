@@ -1,6 +1,6 @@
 # AGENTS_TRANG_THAI.md — File trạng thái tổng hợp duy nhất (agent)
 
-Ngày cập nhật: **2026-09-03 02:13 (Asia/Ho_Chi_Minh)** — Quét trạng thái workspace; xác nhận số liệu hiện tại và ghi nhận artifact combo mới.
+Ngày cập nhật: **2026-09-03 02:45 (Asia/Ho_Chi_Minh)** — Thiết lập kho tri thức KINH_NGHIEM_HOC_HOI.md, bổ sung quy tắc tự động sàng lọc và áp dụng kinh nghiệm học hỏi từ Internet vào AGENTS.md, nâng bộ test đạt 575/575 PASS.
 `/storage/emulated/0/Patch/patch1/_patchx`, chạy độc lập với bản `w/`.
 
 ---
@@ -55,9 +55,20 @@ Ngày cập nhật: **2026-09-03 02:13 (Asia/Ho_Chi_Minh)** — Quét trạng th
    `outputs/**/*report*.json/md`, `outputs/apk/apk-build/*`,
    `outputs/apk/apk-patch/`, `outputs/behavior/`.
 
+### 0.3 QUY TẮC HỌC HỎI & ÁP DỤNG KINH NGHIỆM TỪ INTERNET (bắt buộc)
+1. **Khi User yêu cầu học hỏi kinh nghiệm trên Internet**:
+   - AI chủ động tìm kiếm, phân tích sâu các cơ chế, kỹ thuật mới từ internet (thay đổi hành vi, dữ liệu, cấu hình, lệnh, can thiệp SDK, bypass RASP...).
+   - Tự động đánh giá, chắt lọc các giải pháp tốt nhất, khả thi nhất, phù hợp nhất với kiến trúc workspace `_patchx` và môi trường Termux / Android.
+   - Lưu trữ và cập nhật vào file riêng duy nhất: `KINH_NGHIEM_HOC_HOI.md`.
+2. **Khi User yêu cầu áp dụng kinh nghiệm học được**:
+   - AI tự động tổng hợp toàn bộ các kinh nghiệm đã tích lũy trong `KINH_NGHIEM_HOC_HOI.md`.
+   - Rà soát, đối chiếu lại với các vấn đề kỹ thuật và kinh nghiệm thực tế đã thu thập từ quá trình xử lý file, fix lỗi (lỗi Overlapped Zip, Sandbox Termux, AXML/ARSC packing...) và hiện trạng nâng cấp của toolkit.
+   - Lập bản đánh giá toàn diện, phân tích rủi ro/lợi ích và đưa ra đề xuất triển khai cụ thể, hợp lý cho User duyệt trước khi thực thi mã nguồn.
+
 ---
 
 ## 1. TỔNG QUAN KPI NHANH (mốc 2026-08-14 → 2026-09-02)
+
 
 | Chỉ số | Giá trị mới nhất | Ngày đo |
 |---|---|---|
@@ -67,8 +78,8 @@ Ngày cập nhật: **2026-09-03 02:13 (Asia/Ho_Chi_Minh)** — Quét trạng th
 | Audit | **60 patch — 0 lỗi / 18 cảnh báo / 17 vấn đề tự sửa được** (`outputs/audit/audit.json`) | 2026-08-21 |
 | APK đầu vào | **3 APK** trong Apks/ (a.apk, Dịch Video Thời Gian Thực_0.17.apk, Fake GPS_5.8.7_kill.apk) | 2026-09-02 |
 | Cây giải mã | **1 cây** trong outputs/apk/apk-trees/ (a_src) | 2026-09-02 |
-| Combo thành công | **17 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
-| Git | **đã init + push GitHub** — commit đầu `125a7a3`, commit mốc 11 `de11730` nhánh `master` → đồng bộ cả 2 remote `Behavior-` & `Patchx` | 2026-09-03 |
+| Combo thành công | **18 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
+| Git | **đã init + push GitHub** — HEAD `c64d7f6`, 14 commits trên `master`; remote `Behavior-` | 2026-09-03 |
 | Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-5-20260903-021149.zip, 11.46 MB) | 2026-09-03 |
 
 ---
@@ -116,10 +127,11 @@ Ngày cập nhật: **2026-09-03 02:13 (Asia/Ho_Chi_Minh)** — Quét trạng th
 | `outputs/apk/apk-patch/` | APK đã patch + keystore debug | patchx-debug.keystore |
 | `outputs/behavior/` | Artifact behavior/Frida | 5 tệp (generated_hook.js, frida_hooks_config.json, ...) |
 | `outputs/behavior/gadget/` | APK nhúng gadget + keystore | app_signed/unsigned/aligned + libgadget.so (25M) + gadget_debug.keystore |
-| `outputs/combos/` | Kho combo thành công | combos_success.json (**17 lượt**) |
+| `outputs/combos/` | Kho combo thành công | combos_success.json (**18 lượt**) |
 | `outputs/backup/` | Bản lưu trước khi đổi cấu trúc | `pre_sync_20260821/` (11 tệp source gốc) |
 | `outputs/` | File tự sinh + output module | scan/, audit/, roadmap/, simulate/, ci/, golden/, bench/, baseline/, backup/, cache/, combos/, pipeline/, apk/, behavior/ (xem `outputs/README.md`) |
 | `dist/` | Bản phân phối | 3 bản (mới nhất: patchx-toolkit-5-20260903-021149.zip, 11.46 MB) |
+| `KINH_NGHIEM_HOC_HOI.md` | Kho tri thức học hỏi Internet | Lưu trữ chọn lọc các kỹ thuật can thiệp hành vi, cấu hình, lệnh, SDK |
 
 ---
 
@@ -272,6 +284,13 @@ Ngày cập nhật: **2026-09-03 02:13 (Asia/Ho_Chi_Minh)** — Quét trạng th
 ---
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
+
+- **2026-09-03 02:41 — Báo cáo đánh giá mức hiện đại hóa toolkit**: tạo `outputs/tooling_modernization_review_20260903.md` dựa trên khảo sát source, 575/575 test PASS và tài liệu Android/Apktool/Frida hiện hành. Xác nhận 24 cặp module trùng hash giữa `patchx_core/` và `patchx_core/behavior/`; `patchx_toolkit.py` dùng root module nên đề xuất canonical core là `patchx_core/`, giữ shim/plugin cho behavior chuyên biệt. Khuyến nghị thêm intake cho APK/APKS/XAPK/AAB, các gate split/ABI/certificate/SDK/Play Integrity, và hợp nhất module theo pha; **chưa sửa hay xóa module**. `combos_success.json` thực tế 18 lượt (4.646 byte, mtime 02:19:04); Git HEAD `c64d7f6`, 14 commits. Công cụ đã xác nhận: apktool 3.0.3-dirty, aapt2 2.20, adb 1.0.41, Java 21.0.12, JADX 1.5.5.
+
+- **2026-09-03 02:45 — Thiết lập kho tri thức KINH_NGHIEM_HOC_HOI.md & Quy tắc học hỏi/áp dụng Internet**:
+  1. Khởi tạo file kho tri thức riêng `KINH_NGHIEM_HOC_HOI.md` lưu trữ có cấu trúc 6 nhóm kinh nghiệm can thiệp hành vi, cấu hình, lệnh và SDK đã được đánh giá chọn lọc tối ưu cho Termux / Android.
+  2. Bổ sung mục quy tắc bắt buộc vào `AGENTS.md` (mục QUY TẮC HỌC HỎI & ÁP DỤNG KINH NGHIỆM TỪ INTERNET) và `AGENTS_TRANG_THAI.md` (mục 0.3): tự động sàng lọc khi học hỏi và tự động đối chiếu thực tế khi áp dụng.
+  3. Duy trì test suite đạt **575/575 PASS (100%)**, `selfcheck` 8/8 OK, 64/64 lệnh CLI đồng bộ.
 
 - **2026-09-03 02:16 — Khắc phục triệt để lỗi Sandbox Codex trên Termux Android**:
   1. Cấu hình `sandbox_mode = "danger-full-access"` trong `~/.codex/config.toml` giúp chuyển filesystem sandbox sang `unrestricted`, vô hiệu hóa cơ chế Landlock/seccomp mà Android kernel không hỗ trợ, triệt tiêu lỗi `filesystem sandbox cannot be enforced`.

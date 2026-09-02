@@ -75,6 +75,18 @@ File trạng thái tổng hợp duy nhất: `AGENTS_TRANG_THAI.md`.
   trước khi kết thúc phiên (nguyên tắc "luôn luôn cập nhật phát hiện mới").
 
 
+## QUY TẮC HỌC HỎI & ÁP DỤNG KINH NGHIỆM TỪ INTERNET (bắt buộc)
+
+- **Khi User yêu cầu tìm hiểu / học hỏi kinh nghiệm trên Internet**:
+  1. Chủ động tìm kiếm, phân tích sâu các cơ chế, kỹ thuật mới từ internet (thay đổi hành vi, dữ liệu, cấu hình, lệnh, can thiệp SDK, bypass RASP...).
+  2. **Tự động đánh giá và sàng lọc**: Chỉ chọn các hướng **tốt nhất, khả thi nhất, phù hợp nhất với kiến trúc toolkit `_patchx` và môi trường Termux / Android** (tài nguyên giới hạn, non-root, Python 3.14, Fast-Path, Smali AST, Frida Gadget).
+  3. **Lưu trữ vào file riêng duy nhất**: Toàn bộ các kinh nghiệm được chọn lọc phải được ghi/bổ sung có cấu trúc vào file `KINH_NGHIEM_HOC_HOI.md` (nằm ở thư mục gốc workspace `_patchx`).
+- **Khi User yêu cầu áp dụng kinh nghiệm đã học**:
+  1. Tự động đọc và tổng hợp toàn bộ các kinh nghiệm đã tích lũy trong `KINH_NGHIEM_HOC_HOI.md`.
+  2. Rà soát, đối chiếu lại với các bài học kinh nghiệm xử lý file, fix lỗi thực tế (như lỗi Overlapped Zip, Sandbox Termux, AXML/ARSC packing...) và hiện trạng nâng cấp của toolkit.
+  3. Lập **Bản đánh giá toàn diện & Đề xuất giải pháp hợp lý** (phân tích mức độ ảnh hưởng, tính tương thích, mã nguồn dự kiến) trình User duyệt trước khi thực thi code.
+
+
 ## ĐỒNG BỘ TỰ ĐỘNG KHI THÊM TÍNH NĂNG / NÂNG CẤP (bắt buộc)
 
 MỖI khi thêm tính năng mới, sửa lệnh, hoặc nâng cấp module — phải cập nhật
@@ -128,6 +140,7 @@ in thiếu sót cần bổ sung (không tự sửa file).
 - Cache quét APK: `outputs/cache/scan_*.json` (theo hash cây, nạp lại ~0s).
 - Kho combo thành công: `outputs/combos/combos_success.json` (1 lượt ghi
   2026-08-20); combo sinh ra tại `combos/`, `combos_auto/` (thư mục gốc).
+- Kho tri thức học hỏi Internet: `KINH_NGHIEM_HOC_HOI.md` (lưu trữ có cấu trúc các kinh nghiệm can thiệp hành vi, cấu hình, lệnh và SDK đã sàng lọc).
 - Hook điều khiển thu thập dữ liệu từ xa: `hook_remote_data_control/`.
 - Docs lịch sử: `NGU_CANH.md`, `UPGRADE_PLAN_V3.md`, `EVALUATION.md`.
 - Script dev (giữ ở thư mục gốc, không đóng gói): `sync_patchx.py`,
