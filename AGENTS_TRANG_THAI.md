@@ -68,7 +68,7 @@ Ngày cập nhật: **2026-09-03 02:11 (Asia/Ho_Chi_Minh)** — Triển khai ho�
 | APK đầu vào | **3 APK** trong Apks/ (a.apk, Dịch Video Thời Gian Thực_0.17.apk, Fake GPS_5.8.7_kill.apk) | 2026-09-02 |
 | Cây giải mã | **1 cây** trong outputs/apk/apk-trees/ (a_src) | 2026-09-02 |
 | Combo thành công | **17 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
-| Git | **đã init + push GitHub** — commit đầu `125a7a3`, commit mốc 8 `0dd19bc`, mốc 9 `2add6d2` nhánh `master` → `anhcanem-z/Behavior-` | 2026-09-03 |
+| Git | **đã init + push GitHub** — commit đầu `125a7a3`, commit mốc 11 `de11730` nhánh `master` → đồng bộ cả 2 remote `Behavior-` & `Patchx` | 2026-09-03 |
 | Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-5-20260903-021149.zip, 11.46 MB) | 2026-09-03 |
 
 ---
