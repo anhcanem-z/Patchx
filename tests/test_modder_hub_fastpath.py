@@ -62,6 +62,11 @@ from patchx_core.macro_registry import (
     required_registers,
     validate_macro,
 )
+from patchx_core.learn import (
+    analyze_success_patterns,
+    generate_smart_combo,
+    save_smart_combo,
+)
 
 
 def make_dummy_dex(content=b""):
@@ -362,3 +367,26 @@ def run_all_modder_hub_tests(check_fn):
 
         with open(so_file, "rb") as fh:
             check_fn("native: new hash present in .so", new_hash.encode("ascii") in fh.read())
+
+    # ==================== 8. ACTIVE LEARNING SMART-COMBO & WEBUI SSE ====================
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pat_info = analyze_success_patterns(root_dir)
+    check_fn("learn: analyze_success_patterns returns dict", isinstance(pat_info, dict) and "total_records" in pat_info)
+    check_fn("learn: frequent_patches identified", len(pat_info["frequent_patches"]) > 0)
+    check_fn("learn: pairs identified", len(pat_info["pairs"]) > 0)
+
+    with tempfile.TemporaryDirectory() as td:
+        smart_res = generate_smart_combo(td, "upgraded", intent="bypass-license", max_patches=3)
+        check_fn("learn: generate_smart_combo returns result", smart_res["patch_count"] > 0)
+        check_fn("learn: smart_combo has no conflicts", smart_res["conflicts"] == 0)
+        check_fn("learn: smart_combo merged_patch valid", smart_res["merged_patch"] is not None)
+
+        out_combo_file = os.path.join(td, "smart_combo.txt")
+        save_smart_combo(smart_res["merged_patch"], out_combo_file)
+        check_fn("learn: save_smart_combo creates file", os.path.isfile(out_combo_file) and os.path.getsize(out_combo_file) > 100)
+
+    # Test WebUI broadcast_log
+    from webui.server import broadcast_log, LOG_BUFFER
+    broadcast_log("INFO", "Test message for SSE stream")
+    check_fn("webui: broadcast_log adds to buffer", any("Test message for SSE stream" in entry["msg"] for entry in LOG_BUFFER))
+

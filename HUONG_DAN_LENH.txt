@@ -329,3 +329,8 @@ apk-patch --fast (Toolkit Pipeline)
        python3 patchx_toolkit.py apk-patch app.apk --fast \
            --dex-str "old_val=new_val" --axml "old_pkg=new_pkg" --arsc "OldApp=NewApp"
 
+smart-combo
+   Tự động sinh combo patch tối ưu từ Active Learning (AST Smali + combos_success.json):
+       python3 patchx smart-combo outputs/apk/apk-trees/a_src --intent bypass-license -o combos/
+       python3 patchx smart-combo outputs/apk/apk-trees/a_src --max-patches 3 --apply
+

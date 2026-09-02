@@ -1,6 +1,6 @@
 # AGENTS_TRANG_THAI.md — File trạng thái tổng hợp duy nhất (agent)
 
-Ngày cập nhật: **2026-09-03 02:05 (Asia/Ho_Chi_Minh)** — Triển khai hoàn tất Binary ARSC In-Place Editor, Auto Native Signature Bypass Pipeline, khắc phục lỗi Overlapped Zip trên Python 3.14, nâng bộ test đạt 567/567 (100% PASS).
+Ngày cập nhật: **2026-09-03 02:11 (Asia/Ho_Chi_Minh)** — Triển khai hoàn tất Active Learning Smart-Combo Generator (AST Smali + 16 combo pattern), Realtime SSE Live Log Streaming WebUI, nâng bộ test lên 575/575 (100% PASS).
 `/storage/emulated/0/Patch/patch1/_patchx`, chạy độc lập với bản `w/`.
 
 ---
@@ -62,14 +62,14 @@ Ngày cập nhật: **2026-09-03 02:05 (Asia/Ho_Chi_Minh)** — Triển khai ho�
 | Chỉ số | Giá trị mới nhất | Ngày đo |
 |---|---|---|
 | Selfcheck | **8/8 module OK, 60 patch đọc được, 0 lỗi** | 2026-08-21 |
-| Test đơn vị | **567/567 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
+| Test đơn vị | **575/575 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
 | Bộ patch chuẩn hóa | **60 zip** trong `upgraded/` | 2026-08-21 |
 | Audit | **60 patch — 0 lỗi / 18 cảnh báo / 17 vấn đề tự sửa được** (`outputs/audit/audit.json`) | 2026-08-21 |
 | APK đầu vào | **3 APK** trong Apks/ (a.apk, Dịch Video Thời Gian Thực_0.17.apk, Fake GPS_5.8.7_kill.apk) | 2026-09-02 |
 | Cây giải mã | **1 cây** trong outputs/apk/apk-trees/ (a_src) | 2026-09-02 |
-| Combo thành công | **16 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
+| Combo thành công | **17 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
 | Git | **đã init + push GitHub** — commit đầu `125a7a3`, commit mốc 8 `0dd19bc`, mốc 9 `2add6d2` nhánh `master` → `anhcanem-z/Behavior-` | 2026-09-03 |
-| Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-4-20260903-020406.zip, 11.46 MB) | 2026-09-03 |
+| Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-5-20260903-021149.zip, 11.46 MB) | 2026-09-03 |
 
 ---
 
@@ -116,10 +116,10 @@ Ngày cập nhật: **2026-09-03 02:05 (Asia/Ho_Chi_Minh)** — Triển khai ho�
 | `outputs/apk/apk-patch/` | APK đã patch + keystore debug | patchx-debug.keystore |
 | `outputs/behavior/` | Artifact behavior/Frida | 5 tệp (generated_hook.js, frida_hooks_config.json, ...) |
 | `outputs/behavior/gadget/` | APK nhúng gadget + keystore | app_signed/unsigned/aligned + libgadget.so (25M) + gadget_debug.keystore |
-| `outputs/combos/` | Kho combo thành công | combos_success.json (**16 lượt**) |
+| `outputs/combos/` | Kho combo thành công | combos_success.json (**17 lượt**) |
 | `outputs/backup/` | Bản lưu trước khi đổi cấu trúc | `pre_sync_20260821/` (11 tệp source gốc) |
 | `outputs/` | File tự sinh + output module | scan/, audit/, roadmap/, simulate/, ci/, golden/, bench/, baseline/, backup/, cache/, combos/, pipeline/, apk/, behavior/ (xem `outputs/README.md`) |
-| `dist/` | Bản phân phối | 3 bản (mới nhất: patchx-toolkit-4-20260903-020406.zip, 11.46 MB) |
+| `dist/` | Bản phân phối | 3 bản (mới nhất: patchx-toolkit-5-20260903-021149.zip, 11.46 MB) |
 
 ---
 
@@ -246,13 +246,14 @@ Ngày cập nhật: **2026-09-03 02:05 (Asia/Ho_Chi_Minh)** — Triển khai ho�
 9. [x] **Binary ARSC In-Place Editor (`resources.arsc`)**: `inspect_arsc`, `replace_arsc_strings`, lệnh `patchx arsc-patch`, tích hợp cờ `--arsc` vào `fast-patch` và `apk-patch --fast`.
 10. [x] **Auto Native Signature Bypass Pipeline (Native .so)**: Lệnh `patchx native-sig-bypass`, tự động trích xuất `.so`, quét SHA-256 hash hoa/thường, vá `.so` in-place và sinh companion Frida hook đa tầng.
 11. [x] **Tương thích Python 3.14+ trên Termux**: Xây dựng `safe_open_zip` vô hiệu hóa strict `_end_offset` bomb check, mở khóa đọc/ghi mọi APK modder có overlapped headers.
+12. [x] **Active Learning Smart-Combo Generator (`learn.py`)**: `analyze_success_patterns`, `generate_smart_combo`, `save_smart_combo`, lệnh CLI `patchx smart-combo` tự động tổng hợp patch dựa trên AST Smali và 16 bản ghi lịch sử thành công, 0 xung đột.
+13. [x] **Realtime SSE Live Log Streaming & WebUI Nâng Cấp (`webui/server.py`)**: Giao thức SSE `/api/stream-logs`, luồng phát `broadcast_log`, tab Smart Combo trên WebUI, cửa sổ Live Log Terminal trực quan.
+14. [x] **Kiểm thử & Đóng gói**: Test suite nâng lên **575/575 PASS (100%)**, 64 lệnh CLI đồng bộ.
 
 ### 1. CÁC NHIỆM VỤ ƯU TIÊN TIẾP THEO CẦN TRIỂN KHAI:
-1. **Nâng cấp WebUI: Live Log Streaming (SSE) & Visual Flow Graph**:
-   - Bổ sung SSE/WebSocket nhẹ trên `webui/server.py` để stream trực tiếp logcat/tiến độ build lên giao diện web và hiển thị đồ thị luồng hành vi Smali.
-2. **Active Learning Smart-Combo Generator**:
-   - Khai thác kho 14 combo thành công (`outputs/combos/combos_success.json`) kết hợp với phân tích AST cây Smali để tự động sinh combo patch tối ưu cho từng APK mục tiêu.
-3. **Đồng bộ Remote GitHub (`git push`)**:
+1. **Visual Flow Graph (CFG) trên WebUI**:
+   - Trực quan hóa luồng phân tích Control Flow Graph (CFG) và các điểm rẽ nhánh của cây Smali dưới dạng đồ thị tương tác trên WebUI.
+2. **Đồng bộ Remote GitHub (`git push`)**:
    - Đẩy các commit mới lên nhánh `master` của remote `anhcanem-z/Behavior-`.
 
 ---
@@ -271,6 +272,12 @@ Ngày cập nhật: **2026-09-03 02:05 (Asia/Ho_Chi_Minh)** — Triển khai ho�
 ---
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
+
+- **2026-09-03 02:11 — Hoàn tất Active Learning Smart-Combo Generator, Realtime SSE Live Log Streaming & Test Suite đạt 575/575 PASS**:
+  1. Active Learning Smart-Combo Generator: Bổ sung `analyze_success_patterns`, `generate_smart_combo`, `save_smart_combo` trong `learn.py`. Khai thác 16 lượt combo thành công để sinh combo tối ưu không xung đột cho cây APK.
+  2. CLI `smart-combo`: Đăng ký lệnh `patchx smart-combo` (tổng 64 lệnh CLI), đồng bộ toàn bộ tài liệu hướng dẫn `HUONG_DAN_LENH.txt`.
+  3. Realtime SSE Live Log Streaming: Xây dựng cơ chế phát log SSE `/api/stream-logs` và `broadcast_log` trong `webui/server.py`, tích hợp Live Terminal và tab Smart Combo trên trình duyệt.
+  4. Test Suite & KPI: Bổ sung 8 test cases nâng tổng test lên **575/575 PASS (100%)**, `selfcheck` 8/8 OK, 0 lỗi.
 
 - **2026-09-03 02:05 — Hoàn tất Binary ARSC Editor, Auto Native Signature Bypass Pipeline, Khắc phục lỗi Overlapped Zip Python 3.14 & Test Suite đạt 567/567 PASS**:
   1. Binary ARSC In-Place Editor: Triển khai `inspect_arsc`, `replace_arsc_strings` trong `axml_editor.py`; đăng ký lệnh CLI `arsc-patch` và tích hợp cờ `--arsc` vào `fast-patch` và `apk-patch --fast`.

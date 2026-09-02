@@ -1095,6 +1095,55 @@ def cmd_native_sig_bypass(args):
         return 2
 
 
+def cmd_smart_combo(args):
+    """Máy sinh Smart-Combo tự động dựa trên Active Learning từ kho combos_success.json."""
+    from .learn import generate_smart_combo, save_smart_combo
+    coll = getattr(args, "collection", "upgraded") or "upgraded"
+    if not os.path.isdir(coll):
+        coll = os.path.join(BASE_DIR, coll)
+    if not os.path.isdir(coll):
+        print("[smart-combo] Không tìm thấy kho patch: %s" % coll)
+        return 2
+
+    print("[smart-combo] Đang phân tích cây APK và dữ liệu Active Learning...")
+    res = generate_smart_combo(
+        tree=args.cay,
+        collection=coll,
+        intent=getattr(args, "intent", None),
+        max_patches=getattr(args, "max_patches", 4) or 4,
+        name=getattr(args, "name", None)
+    )
+
+    print("[smart-combo] Kết quả phân tích Active Learning:")
+    print("  Gói ứng dụng    : %s (Danh mục: %s)" % (res["package"] or "Chung", res["category"]))
+    print("  Dữ liệu lịch sử : Sử dụng %d bản ghi thành công" % res["historical_records_used"])
+    print("  Patch đã chọn   : %d patch (%s)" % (res["patch_count"], ", ".join(res["selected_patches"])))
+    print("  Xung đột phát hiện: %d xung đột" % res["conflicts"])
+
+    if not res["selected_patches"]:
+        print("[smart-combo] Không tìm thấy patch phù hợp với tiêu chí/ý định.")
+        return 1
+
+    out_dir = args.output_dir or os.path.join(BASE_DIR, "combos")
+    os.makedirs(out_dir, exist_ok=True)
+    out_file = os.path.join(out_dir, "%s.txt" % res["combo_name"])
+
+    if args.dry_run:
+        print("[smart-combo] DRY-RUN: File combo dự kiến tạo: %s" % out_file)
+        return 0
+
+    save_smart_combo(res["merged_patch"], out_file, header="Smart-Combo sinh tự động bởi Active Learning")
+    print("[smart-combo] Đã tạo combo thành công: %s (%d bytes)" % (out_file, os.path.getsize(out_file)))
+
+    if getattr(args, "apply", False):
+        print("[smart-combo] Đang tự động áp combo vào cây: %s" % args.cay)
+        from .applier import apply_patches
+        app_res = apply_patches([res["merged_patch"]], args.cay)
+        print("[smart-combo] Kết quả áp patch: %s" % app_res)
+
+    return 0
+
+
 def cmd_dex_budget(args):
     """P5 — DEX Resource Manager: ước lượng refs + mức an toàn."""
     from .dex_budget import DEX_METHOD_MAX, budget_report, strategy_for
@@ -2721,6 +2770,17 @@ def main(argv=None):
     p.add_argument("--frida-out", default=None, help="Đường dẫn file kịch bản Frida hook đa tầng")
     p.add_argument("--dry-run", action="store_true", help="Chỉ quét tìm hit hash trong .so, không vá APK")
     p.set_defaults(func=cmd_native_sig_bypass)
+
+    p = sub.add_parser("smart-combo", help="Tự động sinh combo tối ưu từ Active Learning (AST Smali + combos_success.json)")
+    p.add_argument("cay", help="Cây APK đã giải mã hoặc thư mục APK")
+    p.add_argument("--intent", default=None, help="Ý định mod (bypass-license, integrity, purchase, root-hide, ads...)")
+    p.add_argument("--collection", default="upgraded", help="Kho patch nguồn (mặc định: upgraded)")
+    p.add_argument("--max-patches", type=int, default=4, help="Số patch tối đa ghép vào combo (mặc định: 4)")
+    p.add_argument("--name", default=None, help="Tên combo tùy chỉnh")
+    p.add_argument("-o", "--output-dir", default=None, help="Thư mục xuất combo (mặc định: combos/)")
+    p.add_argument("--apply", action="store_true", help="Tự động áp combo vào cây sau khi sinh")
+    p.add_argument("--dry-run", action="store_true", help="Chỉ phân tích, không ghi tệp")
+    p.set_defaults(func=cmd_smart_combo)
 
     p = sub.add_parser("behavior", help="Phân tích hành vi APK dựa trên bằng chứng")
     p.add_argument("thu_muc", help="Cây APK đã giải mã")

@@ -139,3 +139,123 @@ def suggest_plan(tree, collection, top=8):
             "gợi_ý": "Chuoi khuyen nghi: " + ", ".join(
                 s["patch"] for s in scored[:3]) if scored else
             "Khong co patch khớp APK nay."}
+
+
+def analyze_success_patterns(root):
+    """Phân tích các mẫu kết hợp thành công từ kho combos_success.json."""
+    store = success_store_path(root)
+    if not os.path.isfile(store):
+        return {"pairs": {}, "frequent_patches": {}, "total_records": 0}
+    try:
+        data = json.load(open(store, encoding="utf-8"))
+    except Exception:
+        return {"pairs": {}, "frequent_patches": {}, "total_records": 0}
+
+    frequent_patches = {}
+    pairs = {}
+    for entry in data:
+        raw_combo = entry.get("combo") or entry.get("patches") or []
+        if isinstance(raw_combo, str):
+            patches = [p.strip() for p in raw_combo.split(",") if p.strip()]
+        elif isinstance(raw_combo, list):
+            patches = [str(p).strip() for p in raw_combo if str(p).strip()]
+        else:
+            patches = []
+        for p in patches:
+            frequent_patches[p] = frequent_patches.get(p, 0) + 1
+        for i in range(len(patches)):
+            for j in range(i + 1, len(patches)):
+                pair = tuple(sorted([patches[i], patches[j]]))
+                pairs[pair] = pairs.get(pair, 0) + 1
+
+    return {
+        "pairs": pairs,
+        "frequent_patches": frequent_patches,
+        "total_records": len(data),
+    }
+
+
+def generate_smart_combo(tree, collection, intent=None, max_patches=4, name=None):
+    """Máy sinh Smart-Combo tự động (Active Learning):
+
+    Kết hợp độ khớp cây Smali (AST coverage) + trọng số học từ combos_success.json + lọc xung đột find_conflicts.
+    """
+    from .advisor import coverage_patch
+    from .smali_sem import entry_classes
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    patterns = analyze_success_patterns(root)
+    frequent = patterns["frequent_patches"]
+
+    patches = load_patch_map(collection)
+    app, launchers = entry_classes(tree) if os.path.isdir(tree) else (None, [])
+    cat = categorize((app or (launchers[0] if launchers else "")))
+
+    caps_filter = intent_capabilities(intent) if intent else None
+
+    candidates = []
+    for pname, p in patches.items():
+        pcaps = patch_capabilities(p)
+        if caps_filter and not (pcaps & caps_filter):
+            continue
+
+        cov_score = 0.0
+        match_rules = 0
+        if os.path.isdir(tree):
+            try:
+                cov = coverage_patch(p, tree)
+                cov_score = cov.get("tỷ_lệ", 0.0)
+                match_rules = cov.get("quy_tắc_khớp", 0)
+            except Exception:
+                cov_score = 0.0
+
+        # Trọng số thành công lịch sử
+        hist_weight = frequent.get(pname, 0) * 1.5
+        total_score = (cov_score * 100.0) + (match_rules * 5.0) + hist_weight
+        candidates.append({
+            "name": pname,
+            "patch": p,
+            "cov_score": cov_score,
+            "match_rules": match_rules,
+            "hist_weight": hist_weight,
+            "score": total_score,
+            "caps": list(pcaps),
+        })
+
+    candidates.sort(key=lambda x: -x["score"])
+
+    # Chọn lọc các patch không bị xung đột (greedy selection with conflict checking)
+    selected_patches = []
+    selected_names = []
+    for cand in candidates:
+        if len(selected_patches) >= max_patches:
+            break
+        trial = selected_patches + [cand["patch"]]
+        conflicts = find_conflicts(trial)
+        if not conflicts:
+            selected_patches.append(cand["patch"])
+            selected_names.append(cand["name"])
+
+    combo_name = name or ("smart_combo_%s_%s" % (cat.replace("/", "_").replace(" ", "_"), time.strftime("%Y%m%d_%H%M%S")))
+    merged, conf_count = build_skeleton(patches, selected_names, combo_name)
+
+    return {
+        "combo_name": combo_name,
+        "package": app or (launchers[0] if launchers else ""),
+        "category": cat,
+        "selected_patches": selected_names,
+        "patch_count": len(selected_names),
+        "conflicts": conf_count,
+        "merged_patch": merged,
+        "historical_records_used": patterns["total_records"],
+    }
+
+
+def save_smart_combo(merged_patch, output_path, header=None):
+    """Lưu patch combo ra file trên đĩa."""
+    from .optimizer import render_patch_text
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    text = render_patch_text(merged_patch, header=header or "Smart-Combo (Active Learning)")
+    with open(output_path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+    return output_path
+
