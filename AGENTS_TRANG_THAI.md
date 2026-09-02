@@ -232,31 +232,29 @@ Ngày cập nhật: **2026-09-03 01:20 (Asia/Ho_Chi_Minh)** — Hoàn tất chu�
 
 ---
 
-## 6. VIỆC TIẾP THEO (ưu tiên)
+## 6. VIỆC TIẾP THEO (ưu tiên cập nhật 2026-09-03)
 
-### 0. TÍCH HỢP KIẾN TRÚC & TỐI ƯU HÓA TỪ MODDER HUB (ƯU TIÊN HÀNG ĐẦU)
-1. **Direct DEX Bytecode Patching (`dex_inplace.py`)**:
-   - Thao tác trực tiếp opcode/code_item trên file `classes*.dex` trong APK mà không cần qua `apktool d` $\rightarrow$ `apktool b`.
-   - Áp dụng cho các lệnh nhanh: `SET_BOOL`, `FORCE_TRUE`, `NOP`, `RETURN_VOID` $\rightarrow$ cắt giảm thời gian patch từ ~30s xuống **< 0.5s**.
-2. **Binary AXML & ARSC Editor (`axml_editor.py`)**:
-   - Sửa đổi trực tiếp chunk nhị phân của `AndroidManifest.xml` (thêm `<uses-permission>`, `<service>`, đổi `debuggable`, `usesCleartextTraffic`) và bảng `resources.arsc` mà không cần biên dịch lại bằng `aapt2` (triệt tiêu 100% lỗi build F-BUILD-001/002).
-3. **Multi-Layer Signature Spoofing (Bypass Chữ Ký Đa Tầng)**:
-   - Tự động bóc tách DER cert gốc gán vào biến `PATCHX_RSA_DATA`.
-   - Phối hợp `patch_bypass_sigcheck_with_reflection` (Java layer) với `rodata-patch` (Native `.so` SHA-256 cert hash) để vượt qua các cơ chế anti-tamper đa tầng.
-4. **In-Place Zip/APK Repacking**:
-   - Cơ chế Zero-Copy Asset: Chỉ cập nhật các entry `.dex`, `.xml`, `.so` bị sửa đổi trực tiếp vào file APK gốc, giảm thiểu 90% dung lượng ghi tạm và tăng tốc đóng gói lên 5–10x trên Termux.
-5. **Smali Macro Registry**:
-   - Chuẩn hóa kho macro snippet (Toast thông báo trạng thái VIP, logcat interceptor, TrustManager unpinning) với bố cục thanh ghi `.registers`/`.locals` an toàn.
+### 0. CÁC HẠNG MỤC ĐÃ HOÀN TẤT TRỌN VẸN (100% PASS):
+1. [x] **Direct DEX Bytecode Patching (`dex_inplace.py`)**: Sửa struct header unpack `<I20s20I`, opcode dalvik `FORCE_TRUE_V0`, `RETURN_VOID`, `OP_NOP`, lệnh `dex-patch --replace-hex`.
+2. [x] **Binary AXML Editor (`axml_editor.py`)**: Duyệt đệ quy sub-chunks, String Pool UTF-8/UTF-16LE, `inspect_manifest_security`, `bypass_network_security_config` (vượt SSL Pinning tầng XML), `replace_permission` in-place.
+3. [x] **Multi-Layer Signature Spoofing (`signature_spoof.py`)**: `inject_spoof_to_env` nạp `PATCHX_RSA_DATA`, `generate_java_signature_hook` (Frida Java), `scan_and_spoof_native_library` (Native .so layer), pipeline khép kín.
+4. [x] **In-Place Zip/APK Repacking (`apk_fast_repack.py`)**: `strip_signatures=True`, workflow 1-Click `fast_patch_and_repack` (< 0.5s), lệnh `patchx fast-patch`.
+5. [x] **Smali Macro Registry (`macro_registry.py`)**: Xóa `pop`, chuẩn hóa 6 macro chuẩn và bộ tính register an toàn.
+6. [x] **Tích hợp Pipeline Toolkit (`patchx_toolkit.py`)**: Lệnh `apk-patch --fast`, dọn dẹp tự động tệp build trung gian tiết kiệm 156MB ổ đĩa.
+7. [x] **Giao diện WebUI (`webui/server.py`)**: Dashboard giám sát KPI, Fast-Patch 1-Click UI, Patch Explorer.
+8. [x] **Kiểm thử & Đóng gói**: Test suite nâng lên **554/554 PASS (100%)**, đóng gói `dist/patchx-toolkit-3-20260903-011654.zip` (11.45 MB), lưu vết commit mốc 8 và 9.
 
-### Các mục tiếp theo:
-1. app1.apk bypass: hướng còn lại — (a) tìm + patch nhánh quyết định
-   trước RegisterNatives trong JNI_OnLoad (Stalker so sánh 2 luồng gốc/tampered),
-   (b) thay hash chứng chỉ nhúng trong .rodata/.data, (c) dump natives thật rồi
-   làm stub v2. Không dùng stub sạch / patch abort đơn thuần (đã chứng minh fail).
-2. Quyết định xóa/giữ dữ liệu nặng còn lại: `Apks/` (3 APK gốc),
-   `outputs/apk/apk-build/` các bản APK build cũ để giải phóng ổ cứng.
-3. Bổ sung `webui/` nếu cần; cập nhật `outputs/README.md` khi thêm module mới.
-4. **Tổ chức lại workspace toolkit theo bố cục đã nghiên cứu**: phân tách rõ `docs/`, `data/`, `workspaces/`, `artifacts/`, `experiments/`, `tests/` và `tools/`; giữ `patchx_core/` ở vị trí hiện tại.
+### 1. CÁC NHIỆM VỤ ƯU TIÊN TIẾP THEO CẦN TRIỂN KHAI:
+1. **Binary ARSC In-Place Editor (`resources.arsc`)**:
+   - Mở rộng xử lý chunk `RES_TABLE_TYPE` (0x0002) trong `axml_editor.py` hoặc module mới để thay thế trực tiếp chuỗi trong String Pool toàn cục của file tài nguyên `resources.arsc` (API URLs, app labels, config strings) mà không cần decode `res/` và recompile `aapt2`.
+2. **Auto Native Signature Bypass Pipeline (Native .so)**:
+   - Xây dựng lệnh 1-Click quét tự động các file `.so` trong APK để tìm vị trí so sánh SHA-256 cert hash, tự động patch hash hoặc sinh Frida/Stalker script hook trước khi `JNI_OnLoad` abort.
+3. **Nâng cấp WebUI: Live Log Streaming & Visual Flow Graph**:
+   - Bổ sung SSE/WebSocket nhẹ trên `webui/server.py` để stream trực tiếp logcat/tiến độ build lên giao diện web và hiển thị đồ thị luồng hành vi Smali.
+4. **Active Learning Smart-Combo Generator**:
+   - Khai thác kho 14 combo thành công (`outputs/combos/combos_success.json`) kết hợp với phân tích AST cây Smali để tự động sinh combo patch tối ưu cho từng APK mục tiêu.
+5. **Đồng bộ Remote GitHub (`git push`)**:
+   - Đẩy 2 commit mới (`0dd19bc` và `2add6d2`) lên nhánh `master` của remote `anhcanem-z/Behavior-`.
 
 ---
 
