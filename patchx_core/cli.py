@@ -904,6 +904,18 @@ def cmd_pipeline(args):
     return 0 if report["verdict"] in ("SUCCESS", "READY") else 1
 
 
+def cmd_doctor(args):
+    """Kiểm tra toàn diện sức khỏe hệ thống, công cụ và môi trường."""
+    from .doctor import run_doctor
+    res = run_doctor(
+        base_dir=BASE_DIR,
+        input_patch_dir=args.input if hasattr(args, "input") and args.input else None,
+        output_json=args.output if hasattr(args, "output") else None,
+        fix=args.fix if hasattr(args, "fix") else False,
+    )
+    return 0 if res.get("ok") else 1
+
+
 def cmd_macro_list(args):
     from .macro_registry import list_macros, validate_macro
     for name in list_macros():
@@ -2825,9 +2837,9 @@ def main(argv=None):
     p.add_argument("-o", "--output-dir", default=None, help="Thư mục output (mặc định: outputs/intake)")
     p.set_defaults(func=cmd_capabilities)
 
-    p = sub.add_parser("pipeline", help="Khởi chạy Pipeline Thống Nhất (auto|intake|fast|behavior|native|combo)")
+    p = sub.add_parser("pipeline", help="Khởi chạy Pipeline Thống Nhất (auto|intake|fast|native|semantic|gadget|combo)")
     p.add_argument("artifact", help="Tệp APK, APKS, XAPK hoặc AAB")
-    p.add_argument("--mode", default="auto", choices=["auto", "intake", "fast", "behavior", "native", "combo"], help="Chế độ pipeline")
+    p.add_argument("--mode", default="auto", choices=["auto", "intake", "fast", "behavior", "semantic", "native", "gadget", "combo"], help="Chế độ pipeline")
     p.add_argument("-o", "--out", default=None, help="Đường dẫn APK đầu ra (nếu có)")
     p.add_argument("--output-dir", default=None, help="Thư mục xuất báo cáo (mặc định: outputs/pipeline)")
     p.add_argument("--dex-str", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi DEX in-place")
@@ -2838,6 +2850,13 @@ def main(argv=None):
     p.add_argument("--auto-patch", action="store_true", help="Tự động vá Smali cho behavior stage")
     p.add_argument("--build-apk", action="store_true", help="Build APK sau khi vá")
     p.set_defaults(func=cmd_pipeline)
+
+    p = sub.add_parser("doctor", help="Chẩn đoán toàn diện sức khỏe hệ thống, công cụ và môi trường")
+    p.add_argument("-i", "--input", default=None, help="Thư mục kho patch (mặc định: upgraded/)")
+    p.add_argument("-o", "--output", default=None, help="Đường dẫn tệp xuất báo cáo JSON")
+    p.add_argument("--json", action="store_true", help="In/xuất báo cáo dạng JSON")
+    p.add_argument("--fix", action="store_true", help="Tự động sửa lỗi/tạo thư mục/cài đặt")
+    p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser("macro-list", help="Liệt kê Smali macro và yêu cầu register")
     p.add_argument("--registers", type=int, default=2, help="Số register dự kiến")
@@ -3280,6 +3299,14 @@ def main(argv=None):
 
 
     p = sub.add_parser("menu", help="Danh sách chức năng chọn pipeline (menu có nhóm + sắp xếp)")
+    p.add_argument("--list", action="store_true", help="In toàn bộ danh sách chức năng")
+    p.add_argument("--goal", default=None, help="Tìm theo mục tiêu (tính điểm khớp, xếp hạng)")
+    p.add_argument("--run", default=None, help="Chạy pipeline theo ID (vd rodata-static)")
+    p.add_argument("--set", action="append", default=[], help="Giá trị placeholder KEY=VALUE")
+    p.add_argument("--no-confirm", dest="no_confirm", action="store_true", help="Chạy pipeline không hỏi xác nhận")
+    p.set_defaults(func=cmd_menu)
+
+    p = sub.add_parser("menu-cli", help="Khởi chạy Bảng điều khiển Menu CLI tương tác trực tiếp")
     p.add_argument("--list", action="store_true", help="In toàn bộ danh sách chức năng")
     p.add_argument("--goal", default=None, help="Tìm theo mục tiêu (tính điểm khớp, xếp hạng)")
     p.add_argument("--run", default=None, help="Chạy pipeline theo ID (vd rodata-static)")

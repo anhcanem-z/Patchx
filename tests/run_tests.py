@@ -4099,6 +4099,16 @@ def test_feature_menu():
               menu_main(["--goal", "zzzzqqqqwwww"]) == 1)
         check("menu: main --run ID sai rc=2",
               menu_main(["--run", "khong-co-id"]) == 2)
+
+        # ---- Menu CLI tương tác ----
+        from patchx_core.feature_menu import interactive_cli_menu
+        out_buf = []
+        rc_menu = interactive_cli_menu(input_fn=lambda _: "0", output_fn=out_buf.append)
+        check("menu: interactive_cli_menu thoát 0", rc_menu == 0
+              and any("MENU CLI" in line for line in out_buf))
+
+        from patchx_core.cli import main as cli_main
+        check("menu: CLI menu-cli --list rc=0", cli_main(["menu-cli", "--list"]) == 0)
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
@@ -4642,6 +4652,27 @@ def test_unified_pipeline():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def test_doctor():
+    from patchx_core.doctor import run_doctor
+    from patchx_core.cli import main as cli_main
+    d = tempfile.mkdtemp(prefix="patchx_doc_", dir=TMP if os.path.isdir(TMP) else None)
+    try:
+        out_json = os.path.join(d, "doc.json")
+        out_buf = []
+        res = run_doctor(output_json=out_json, logger=out_buf.append)
+        check("doctor: run_doctor trả dict kết quả hợp lệ",
+              isinstance(res, dict) and "pipelines" in res and "platform" in res)
+        check("doctor: xuất báo cáo JSON thành công",
+              os.path.isfile(out_json))
+        check("doctor: render banner chẩn đoán",
+              any("PATCHX DOCTOR" in line for line in out_buf))
+
+        cli_rc = cli_main(["doctor", "-o", os.path.join(d, "cli_doc.json")])
+        check("doctor: CLI lệnh chạy thành công trả 0", cli_rc == 0)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def main():
     test_baseline()
     test_combo()
@@ -4734,6 +4765,7 @@ def main():
     test_session_selector()
     test_intake_capabilities()
     test_unified_pipeline()
+    test_doctor()
     from tests.test_modder_hub_fastpath import run_all_modder_hub_tests
     run_all_modder_hub_tests(check)
     ok = sum(1 for _, c, _ in RESULTS if c)

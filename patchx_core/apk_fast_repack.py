@@ -47,7 +47,7 @@ def fast_repack_apk(apk_in_path, updates_map, apk_out_path=None, strip_signature
         raise FileNotFoundError("Không tìm thấy APK gốc: %s" % apk_in_path)
 
     if updates_map is None:
-        raise ValueError("updates_map không được None")
+        updates_map = {}
 
     if apk_out_path is None:
         apk_out_path = apk_in_path + ".repack.tmp"
@@ -202,7 +202,8 @@ def fast_patch_and_repack(apk_path, dex_replacements=None, axml_replacements=Non
                 updates["resources.arsc"] = curr_arsc
                 total_arsc_hits += arsc_hits
 
-    if not updates and not allow_empty:
+    patterns_provided = bool(dex_replacements or axml_replacements or arsc_replacements)
+    if not updates and not allow_empty and patterns_provided:
         return {
             "success": False,
             "message": "Không có hit nào khớp với các pattern thay thế.",

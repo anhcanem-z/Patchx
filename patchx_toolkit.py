@@ -378,80 +378,15 @@ def _resolve_apk_tree(args):
 
 def cmd_doctor(args):
     """Kiểm tra môi trường và bộ patch đầu vào."""
-    ok = True
-    _log("Kiểm tra Python: %s" % sys.version.split()[0])
-    if not os.path.isfile(PATCHX):
-        _log("THIẾU patchx tại %s" % PATCHX)
-        ok = False
-    else:
-        _log("patchx: OK (%s)" % PATCHX)
-    inp = os.path.abspath(args.input)
-    if not os.path.isdir(inp):
-        _log("KHÔNG TÌM THẤY thư mục patch đầu vào: %s" % inp)
-        ok = False
-    else:
-        n = _count_zips(inp)
-        _log("Thư mục patch đầu vào: %s (%d zip)" % (inp, n))
-        if n == 0:
-            ok = False
-    if os.path.isdir(DEFAULT_DEMO_APK):
-        _log("Demo APK: OK (%s)" % DEFAULT_DEMO_APK)
-    else:
-        _log("Không có demo-apk (bỏ qua roadmap/coverage nếu cần APK).")
-    apks = _list_apks()
-    if apks:
-        _log("Thư mục APK đầu vào: %s (%d apk)" % (DEFAULT_APKS, len(apks)))
-        for a in apks[:5]:
-            _log("  - %s" % a)
-        if len(apks) > 5:
-            _log("  ... và %d tệp nữa" % (len(apks) - 5))
-    else:
-        _log("Không tìm thấy tệp .apk trong %s" % DEFAULT_APKS)
-    bundles = _list_apks_bundles()
-    if bundles:
-        _log("APK split bundle (.apks): %d tệp" % len(bundles))
-        for b in bundles[:5]:
-            _log("  - %s" % b)
-        if len(bundles) > 5:
-            _log("  ... và %d tệp nữa" % (len(bundles) - 5))
-    os.makedirs(APKS_PATCH_DIR, exist_ok=True)
-    patched = _list_apks(APKS_PATCH_DIR)
-    if patched:
-        _log("APK đã patch (%s): %d apk" % (APKS_PATCH_DIR, len(patched)))
-        for a in patched[:5]:
-            _log("  - %s" % a)
-        if len(patched) > 5:
-            _log("  ... và %d tệp nữa" % (len(patched) - 5))
-    else:
-        _log("APK đã patch (%s): trống — lệnh `apk-patch` sẽ lưu kết quả tại đây"
-             % APKS_PATCH_DIR)
-    missing = [t for t in TOOL_PACKAGES if not shutil.which(t)]
-    if missing:
-        hints = []
-        for t in missing:
-            pkg = TOOL_PACKAGES.get(t)
-            if pkg == "prebuilt":
-                hints.append("%s (prebuilt — chạy install-deps)" % t)
-            elif pkg is None:
-                hints.append("%s (không có gói trong kho)" % t)
-            else:
-                hints.append(t)
-        _log("Công cụ thiếu: %s — chạy `install-deps` để tự cài"
-             % ", ".join(hints))
-    else:
-        _log("Công cụ ngoài: đủ (%s)" % ", ".join(sorted(TOOL_PACKAGES)))
-    # Không dùng `tool version` chung cho mọi binary: Java/JADX/apksigner có
-    # cú pháp khác nhau. Capability probe chuẩn hóa lệnh và chỉ đọc môi trường.
-    try:
-        from patchx_core.intake import collect_tool_capabilities
-        capabilities = collect_tool_capabilities()
-        _log("Phiên bản công cụ (capability probe):")
-        for row in capabilities["tools"]:
-            state = row.get("version") if row.get("available") else "THIẾU"
-            _log("  - %s: %s" % (row["name"], state))
-    except Exception as exc:
-        _log("Không lấy được capability probe: %s" % exc)
-    return 0 if ok else 1
+    from patchx_core.doctor import run_doctor
+    res = run_doctor(
+        base_dir=TOOLKIT_DIR,
+        input_patch_dir=getattr(args, "input", None),
+        output_json=getattr(args, "output", None),
+        fix=getattr(args, "fix", False),
+        logger=_log,
+    )
+    return 0 if res.get("ok") else 1
 
 
 def cmd_install_deps(args):

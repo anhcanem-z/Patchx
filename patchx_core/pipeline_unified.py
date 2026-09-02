@@ -62,16 +62,18 @@ class UnifiedPipeline:
                 self._run_intake_stage(report, **kwargs)
             elif mode == "fast":
                 self._run_fast_stage(report, **kwargs)
-            elif mode == "behavior":
-                self._run_behavior_stage(report, **kwargs)
+            elif mode in ("behavior", "semantic"):
+                self._run_semantic_stage(report, **kwargs)
             elif mode == "native":
                 self._run_native_stage(report, **kwargs)
+            elif mode == "gadget":
+                self._run_gadget_stage(report, **kwargs)
             elif mode == "combo":
                 self._run_combo_stage(report, **kwargs)
             elif mode == "auto":
                 self._run_auto_hybrid_stage(report, **kwargs)
             else:
-                raise ValueError(f"Chế độ pipeline không hợp lệ: '{mode}'. Chọn: intake, fast, behavior, native, combo, auto.")
+                raise ValueError(f"Chế độ pipeline không hợp lệ: '{mode}'. Chọn: intake, fast, native, semantic, behavior, gadget, combo, auto.")
 
             # Tính verdict tổng quát
             failed_stages = [s["name"] for s in report["stages"] if s.get("status") == "FAIL"]
@@ -179,6 +181,68 @@ class UnifiedPipeline:
             "targets_count": len(b_res.get("targets", [])),
         })
         report["outputs"]["frida_hook"] = b_res.get("artifacts", {}).get("hook_script")
+
+    def _run_semantic_stage(self, report: Dict[str, Any], **kwargs) -> None:
+        """Luồng 3: Autonomous Smali Semantic 3-Gate Pipeline."""
+        tree_dir = self.artifact
+        if os.path.isfile(self.artifact):
+            apk_name = os.path.splitext(os.path.basename(self.artifact))[0]
+            candidate_tree = os.path.join(
+                os.path.dirname(self.output_dir), "apk", "apk-trees", f"{apk_name}_src"
+            )
+            if os.path.isdir(candidate_tree):
+                tree_dir = candidate_tree
+            else:
+                self._run_behavior_stage(report, **kwargs)
+                return
+
+        from patchx_core.behavior.pipeline import run_frida_pipeline
+        out_b = os.path.join(self.output_dir, "semantic")
+        b_res = run_frida_pipeline(
+            tree_dir,
+            out_dir=out_b,
+            auto_patch=kwargs.get("auto_patch", False),
+            build_apk=kwargs.get("build_apk", False),
+            min_score=kwargs.get("min_score", 0.65),
+            interactive=False,
+        )
+        report["stages"].append({
+            "name": "semantic_3gate_patching",
+            "status": "PASS" if b_res.get("ok") else "WARN",
+            "tree": tree_dir,
+            "summary": b_res.get("summary", {}),
+            "targets_count": len(b_res.get("targets", [])),
+        })
+        if b_res.get("artifacts", {}).get("hook_script"):
+            report["outputs"]["semantic_frida_hook"] = b_res["artifacts"]["hook_script"]
+
+    def _run_gadget_stage(self, report: Dict[str, Any], **kwargs) -> None:
+        """Luồng 4: Non-Root Frida Gadget Automated Injection Pipeline."""
+        from patchx_core.behavior.gadget_pipeline import run_gadget_pipeline
+        out_gadget_dir = os.path.join(self.output_dir, "gadget")
+        os.makedirs(out_gadget_dir, exist_ok=True)
+        try:
+            res = run_gadget_pipeline(
+                self.artifact,
+                out_dir=out_gadget_dir,
+                gadget_mode=kwargs.get("gadget_mode", "script"),
+                sign=not kwargs.get("no_sign", False),
+                auto_confirm=True,
+                output_fn=lambda _: None,
+            )
+            report["stages"].append({
+                "name": "gadget_injection",
+                "status": "PASS",
+                "details": {"apk": str(res.get("apk")), "config": str(res.get("config"))},
+            })
+            if res.get("apk"):
+                report["outputs"]["gadget_apk"] = str(res["apk"])
+        except Exception as exc:
+            report["stages"].append({
+                "name": "gadget_injection",
+                "status": "WARN",
+                "reason": str(exc),
+            })
 
     def _run_native_stage(self, report: Dict[str, Any], **kwargs) -> None:
         """Stage 4: Native .so Analysis & Signature Spoofing."""

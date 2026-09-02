@@ -344,9 +344,30 @@ capabilities
        python3 patchx capabilities -o outputs/intake
 
 pipeline
-   Khởi chạy Unified Pipeline tích hợp (auto, intake, fast, behavior, native, combo):
-       python3 patchx pipeline app.apk --mode auto
-       python3 patchx pipeline app.apk --mode fast --dex-str "old=new" --axml "old=new"
-       python3 patchx pipeline app.apk --mode intake -o outputs/pipeline
-       python3 patchx pipeline app.apk --mode native
+   Khởi chạy Unified Pipeline tích hợp 6 luồng xử lý chuẩn hóa:
+       1. Auto Hybrid (Omni Mode): Tự động phân loại và điều phối luồng con:
+           python3 patchx pipeline app.apk --mode auto
+       2. Fast-Path Binary (<0.5s): In-place DEX + AXML + ARSC + strip cert:
+           python3 patchx pipeline app.apk --mode fast --dex-str "old=new" --axml "old=new"
+       3. Native Deep-Scan & Rodata Bypass: Quét .so + SHA-256 cert spoof:
+           python3 patchx pipeline app.apk --mode native
+       4. Autonomous Smali Semantic 3-Gate: Vá logic Smali với 3 cổng kiểm duyệt:
+           python3 patchx pipeline outputs/apk/apk-trees/app_src --mode semantic
+       5. Non-Root Frida Gadget Injection: Nhúng libgadget.so + config + hook:
+           python3 patchx pipeline app.apk --mode gadget
+       6. Active-Learning Smart Combo: Sinh combo tối ưu từ lịch sử thành công:
+           python3 patchx pipeline app.apk --mode combo
+       7. Intake & Capability Triage: Đánh giá artifact và môi trường:
+           python3 patchx pipeline app.apk --mode intake -o outputs/pipeline
+menu-cli
+   Khởi chạy Bảng điều khiển Menu CLI tương tác trực tiếp (hỗ trợ chọn nhanh APK và chạy 1-click):
+       python3 patchx menu-cli
+       python3 patchx menu-cli --list
+       python3 patchx menu-cli --goal "frida"
+       python3 patchx menu-cli --run rodata-static
 
+doctor
+   Chẩn đoán toàn diện sức khỏe hệ thống, công cụ Android SDK/Termux và các pipeline:
+       python3 patchx doctor
+       python3 patchx doctor -o outputs/doctor_report.json
+       python3 patchx doctor --fix

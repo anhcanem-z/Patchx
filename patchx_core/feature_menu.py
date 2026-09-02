@@ -40,6 +40,7 @@ BANNER = """\
 
 # {PY} là python thực thi (mặc định python3; máy này dùng python3.12).
 DEFAULT_PY = "python3"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # ---- phân chia nền tảng: NATIVE (.so) / SMALI (DEX/APK) / CHUNG ----
 PLATFORM_BY_ID = {
@@ -727,28 +728,392 @@ def main(argv: Optional[List[str]] = None) -> int:
                 return 0
         return run_pipeline(item, values=values, interactive=False)
 
-    # ---- menu tương tác ----
-    print(render_catalog())
-    items = all_items()
-    index = _num(items)
+def list_sample_apks() -> List[str]:
+    """Tìm nhanh các tệp APK trong thư mục Apks/ hoặc outputs/."""
+    apks = []
+    candidates = [
+        os.path.join(BASE_DIR, "Apks"),
+        os.path.join(BASE_DIR, "outputs", "apk", "apk-build"),
+        os.path.join(BASE_DIR, "outputs", "pipeline"),
+    ]
+    seen = set()
+    for d in candidates:
+        if os.path.isdir(d):
+            for f in sorted(os.listdir(d)):
+                if f.lower().endswith((".apk", ".apks", ".xapk", ".aab")):
+                    p = os.path.join(d, f)
+                    if p not in seen:
+                        seen.add(p)
+                        apks.append(p)
+    return apks
+
+
+def prompt_select_apk(prompt: str = "Chọn tệp APK", input_fn=input, output_fn=print) -> Optional[str]:
+    """Hỗ trợ chọn nhanh APK có sẵn trong dự án hoặc nhập đường dẫn mới."""
+    apks = list_sample_apks()
+    output_fn("\n--- %s ---" % prompt)
+    for i, a in enumerate(apks, 1):
+        rel = os.path.relpath(a, BASE_DIR)
+        output_fn("  [%d] %s" % (i, rel))
+    output_fn("  [%d] Nhập đường dẫn tệp khác..." % (len(apks) + 1))
+    output_fn("  [0] Quay lại")
     try:
-        choice = input("Chọn số: ").strip()
-    except EOFError:
+        c = input_fn("Chọn (0-%d): " % (len(apks) + 1)).strip()
+    except (EOFError, KeyboardInterrupt, StopIteration):
+        return None
+    if not c.isdigit():
+        return None
+    idx = int(c)
+    if idx == 0:
+        return None
+    if 1 <= idx <= len(apks):
+        return apks[idx - 1]
+    if idx == len(apks) + 1:
+        try:
+            custom = input_fn("Nhập đường dẫn artifact: ").strip().strip('"').strip("'")
+            if os.path.exists(custom):
+                return custom
+            output_fn("Không tìm thấy tệp: %s" % custom)
+        except (EOFError, KeyboardInterrupt, StopIteration):
+            return None
+    return None
+
+
+def interactive_cli_menu(input_fn=input, output_fn=print) -> int:
+    """Giao diện Menu CLI tương tác trực tiếp cho PatchX."""
+    while True:
+        output_fn("")
+        output_fn("=" * 70)
+        output_fn("   PATCHX — MENU CLI (BẢNG ĐIỀU KHIỂN ĐIỀU HƯỚNG TƯƠNG TÁC)")
+        output_fn("=" * 70)
+        output_fn("  [1] 🚀 Unified Pipeline (Auto: Intake -> Fast -> Native -> Sign)")
+        output_fn("  [2] ⚡ Fast-Path 1-Click (< 0.5s: In-Place DEX/AXML/ARSC Repack)")
+        output_fn("  [3] 🔍 Intake Triage & Probe (Thẩm định APK/AAB không giải nén)")
+        output_fn("  [4] 🛡️  Native .so Lab (Quét nhị phân, SHA-256 spoof, Rodata RVA)")
+        output_fn("  [5] 🧠 Behavior & Frida Hook (Phân tích Smali AST, RPC, Gadget APK)")
+        output_fn("  [6] 🎯 Active Learning Smart-Combo (Tổng hợp combo patch tối ưu)")
+        output_fn("  [7] 📦 Build & Đóng gói APK (Apktool decode, fix tài nguyên, build/sign)")
+        output_fn("  [8] 🩺 Kiểm tra hệ thống (Capabilities / Selfcheck / Test Suite)")
+        output_fn("  [9] 📋 Xem toàn bộ danh mục 25+ chức năng chi tiết (Full Catalog)")
+        output_fn("  [s] 🔎 Tìm kiếm theo mục tiêu (--goal)")
+        output_fn("  [0] 🚪 Thoát")
+        output_fn("-" * 70)
+        try:
+            choice = input_fn("Lựa chọn của bạn (0-9/s): ").strip().lower()
+        except (EOFError, KeyboardInterrupt, StopIteration):
+            output_fn("\n[menu-cli] Tạm biệt!")
+            return 0
+
+        if choice in ("0", "q", "exit", "quit"):
+            output_fn("[menu-cli] Tạm biệt!")
+            return 0
+
+        elif choice == "1":
+            apk = prompt_select_apk("Chọn APK để chạy Unified Pipeline", input_fn=input_fn, output_fn=output_fn)
+            if not apk:
+                continue
+            output_fn("\nChọn chế độ:")
+            output_fn("  [1] auto (Khuyến nghị: Hybrid toàn trình)")
+            output_fn("  [2] fast (Chỉ Fast-Path repack siêu tốc)")
+            output_fn("  [3] intake (Chỉ kiểm kê, không giải nén)")
+            output_fn("  [4] native (Quét & vá chữ ký .so)")
+            output_fn("  [5] combo (Active learning)")
+            try:
+                m_c = input_fn("Chọn chế độ (mặc định 1): ").strip()
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                continue
+            mode_map = {"1": "auto", "2": "fast", "3": "intake", "4": "native", "5": "combo"}
+            mode = mode_map.get(m_c, "auto")
+            cmd = f"{sys.executable} patchx pipeline \"{apk}\" --mode {mode}"
+            output_fn("\n[menu-cli] Thực thi: %s" % cmd)
+            subprocess.run(shlex.split(cmd))
+            try:
+                input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                pass
+
+        elif choice == "2":
+            apk = prompt_select_apk("Chọn APK để chạy Fast-Path Repack", input_fn=input_fn, output_fn=output_fn)
+            if not apk:
+                continue
+            out_name = os.path.splitext(os.path.basename(apk))[0] + "_fastpatched.apk"
+            out_apk = os.path.join(BASE_DIR, "outputs", "pipeline", out_name)
+            try:
+                dex_str = input_fn("Thay chuỗi DEX in-place (OLD=NEW, bỏ trống nếu không): ").strip()
+                axml_str = input_fn("Thay chuỗi AXML in-place (OLD=NEW, bỏ trống nếu không): ").strip()
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                continue
+            cmd_parts = [sys.executable, "patchx", "fast-patch", apk, "-o", out_apk]
+            if dex_str and "=" in dex_str:
+                cmd_parts.extend(["--dex-str", dex_str])
+            if axml_str and "=" in axml_str:
+                cmd_parts.extend(["--axml", axml_str])
+            output_fn("\n[menu-cli] Thực thi: %s" % " ".join(cmd_parts))
+            subprocess.run(cmd_parts)
+            try:
+                input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                pass
+
+        elif choice == "3":
+            apk = prompt_select_apk("Chọn artifact để Intake", input_fn=input_fn, output_fn=output_fn)
+            if not apk:
+                continue
+            cmd_parts = [sys.executable, "patchx", "intake", apk]
+            output_fn("\n[menu-cli] Thực thi: %s" % " ".join(cmd_parts))
+            subprocess.run(cmd_parts)
+            try:
+                input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                pass
+
+        elif choice == "4":
+            output_fn("\n--- NATIVE .SO LAB ---")
+            output_fn("  [1] start-scan — Quét toàn bộ thư viện .so")
+            output_fn("  [2] native-sig-bypass — Multi-layer signature spoofing")
+            output_fn("  [3] rodata-find — Tìm chuỗi RVA trong .so")
+            output_fn("  [0] Quay lại")
+            try:
+                n_c = input_fn("Chọn (0-3): ").strip()
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                continue
+            if n_c == "1":
+                apk = prompt_select_apk("Chọn APK để quét .so", input_fn=input_fn, output_fn=output_fn)
+                if apk:
+                    subprocess.run([sys.executable, "patchx", "start-scan", apk])
+                    try:
+                        input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        pass
+            elif n_c == "2":
+                apk = prompt_select_apk("Chọn APK gốc để trích cert", input_fn=input_fn, output_fn=output_fn)
+                if apk:
+                    subprocess.run([sys.executable, "patchx", "native-sig-bypass", apk])
+                    try:
+                        input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        pass
+            elif n_c == "3":
+                try:
+                    so_path = input_fn("Đường dẫn file .so: ").strip()
+                    needle = input_fn("Chuỗi cần tìm: ").strip()
+                except (EOFError, KeyboardInterrupt, StopIteration):
+                    continue
+                if so_path and needle:
+                    subprocess.run([sys.executable, "patchx", "rodata-find", so_path, "--string", needle])
+                    try:
+                        input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        pass
+
+        elif choice == "5":
+            output_fn("\n--- BEHAVIOR & FRIDA HOOK ---")
+            output_fn("  [1] behavior — Quét hành vi tĩnh Smali")
+            output_fn("  [2] targets — Liệt kê điểm cần sửa")
+            output_fn("  [3] gadget-pipeline — Nhúng Frida Gadget vào APK")
+            output_fn("  [0] Quay lại")
+            try:
+                b_c = input_fn("Chọn (0-3): ").strip()
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                continue
+            if b_c in ("1", "2"):
+                tree = os.path.join(BASE_DIR, "outputs", "apk", "apk-trees", "a_src")
+                if not os.path.isdir(tree):
+                    try:
+                        tree = input_fn("Đường dẫn thư mục cây APK giải mã: ").strip()
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        continue
+                if tree and os.path.isdir(tree):
+                    subcmd = "behavior" if b_c == "1" else "targets"
+                    subprocess.run([sys.executable, "patchx", subcmd, tree])
+                    try:
+                        input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        pass
+                else:
+                    output_fn("Không tìm thấy cây APK đã giải mã!")
+            elif b_c == "3":
+                apk = prompt_select_apk("Chọn APK để nhúng Frida Gadget", input_fn=input_fn, output_fn=output_fn)
+                if apk:
+                    subprocess.run([sys.executable, "patchx", "gadget-pipeline", apk])
+                    try:
+                        input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        pass
+
+        elif choice == "6":
+            tree = os.path.join(BASE_DIR, "outputs", "apk", "apk-trees", "a_src")
+            if not os.path.isdir(tree):
+                try:
+                    tree = input_fn("Đường dẫn cây APK: ").strip()
+                except (EOFError, KeyboardInterrupt, StopIteration):
+                    continue
+            if tree and os.path.isdir(tree):
+                subprocess.run([sys.executable, "patchx", "smart-combo", tree])
+                try:
+                    input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                except (EOFError, KeyboardInterrupt, StopIteration):
+                    pass
+
+        elif choice == "7":
+            output_fn("\n--- BUILD & ĐÓNG GÓI APK ---")
+            output_fn("  [1] apk-prepare (Decode APK ra cây smali/res)")
+            output_fn("  [2] apk-build (Build nhanh cây thành APK + ký)")
+            output_fn("  [3] apk-full (Toàn trình: decode -> patch -> build -> verify)")
+            output_fn("  [0] Quay lại")
+            try:
+                p_c = input_fn("Chọn (0-3): ").strip()
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                continue
+            if p_c == "1":
+                apk = prompt_select_apk("Chọn APK để giải mã", input_fn=input_fn, output_fn=output_fn)
+                if apk:
+                    subprocess.run([sys.executable, "patchx", "apk-prepare", apk])
+                    try:
+                        input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        pass
+            elif p_c == "2":
+                try:
+                    tree = input_fn("Đường dẫn cây APK: ").strip()
+                except (EOFError, KeyboardInterrupt, StopIteration):
+                    continue
+                if tree:
+                    subprocess.run([sys.executable, "patchx_toolkit.py", "apk-build", tree])
+                    try:
+                        input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        pass
+            elif p_c == "3":
+                apk = prompt_select_apk("Chọn APK đầu vào", input_fn=input_fn, output_fn=output_fn)
+                if apk:
+                    subprocess.run([sys.executable, "patchx_toolkit.py", "apk-full", apk])
+                    try:
+                        input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+                    except (EOFError, KeyboardInterrupt, StopIteration):
+                        pass
+
+        elif choice == "8":
+            output_fn("\n--- KIỂM TRA HỆ THỐNG ---")
+            output_fn("  [1] doctor (Chẩn đoán toàn diện hệ thống & công cụ)")
+            output_fn("  [2] capabilities (Kiểm kê công cụ trong môi trường)")
+            output_fn("  [3] selfcheck (Kiểm tra sức khỏe module và kho patch)")
+            output_fn("  [4] test (Chạy toàn bộ bộ test suite)")
+            output_fn("  [0] Quay lại")
+            try:
+                t_c = input_fn("Chọn (0-4): ").strip()
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                continue
+            if t_c == "1":
+                subprocess.run([sys.executable, "patchx", "doctor"])
+            elif t_c == "2":
+                subprocess.run([sys.executable, "patchx", "capabilities"])
+            elif t_c == "3":
+                subprocess.run([sys.executable, "patchx", "selfcheck"])
+            elif t_c == "4":
+                subprocess.run([sys.executable, "-B", "tests/run_tests.py"])
+            try:
+                input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                pass
+
+        elif choice == "9":
+            output_fn(render_catalog())
+            items = all_items()
+            idx_map = _num(items)
+            try:
+                c = input_fn("\nChọn số mục (1-%d) để xem chi tiết, hoặc 0 để quay lại: " % len(items)).strip()
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                continue
+            if c.isdigit() and int(c) in idx_map:
+                it = idx_map[int(c)]
+                output_fn("")
+                output_fn(render_detail(it))
+                try:
+                    run_now = input_fn("\nChạy pipeline của mục này? (y/N): ").strip().lower()
+                except (EOFError, KeyboardInterrupt, StopIteration):
+                    run_now = "n"
+                if run_now == "y":
+                    run_pipeline(it, values={}, input_fn=input_fn)
+            try:
+                input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                pass
+
+        elif choice == "s":
+            try:
+                q = input_fn("Nhập từ khóa tìm kiếm: ").strip()
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                continue
+            if q:
+                rows = search_features(q)
+                if rows:
+                    output_fn(render_search(rows))
+                else:
+                    output_fn("Không tìm thấy chức năng nào khớp '%s'" % q)
+            try:
+                input_fn("\n[Nhấn Enter để quay lại Menu CLI...]")
+            except (EOFError, KeyboardInterrupt, StopIteration):
+                pass
+        else:
+            output_fn("[menu-cli] Lựa chọn không hợp lệ, vui lòng chọn lại.")
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="patchx menu",
+        description="Giao diện Menu CLI tương tác & Danh sách chức năng chọn pipeline.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Ví dụ:\n"
+               "  python3 patchx menu\n"
+               "  python3 patchx menu-cli\n"
+               "  python3 patchx menu --list\n"
+               "  python3 patchx menu --goal \"patch chuỗi trong so\"\n"
+               "  python3 patchx menu --run rodata-static --set SO=lib.so "
+               "--set OLD=\"https://x\" --set NEW=\"https://y\"")
+    parser.add_argument("--list", action="store_true",
+                        help="In toàn bộ danh sách chức năng (có nhóm + số chọn)")
+    parser.add_argument("--goal", default=None,
+                        help="Tìm theo mục tiêu (tính điểm khớp từ khóa, xếp hạng)")
+    parser.add_argument("--run", default=None,
+                        help="Chạy pipeline theo ID (vd rodata-static)")
+    parser.add_argument("--set", action="append", default=[],
+                        help="Giá trị placeholder KEY=VALUE (lặp lại được)")
+    parser.add_argument("--no-confirm", dest="no_confirm", action="store_true",
+                        help="Chạy pipeline không hỏi xác nhận từng lệnh")
+    args = parser.parse_args(argv)
+
+    if args.list:
+        print(render_catalog(show_pipeline=False))
         return 0
-    if not choice.isdigit() or int(choice) not in index:
-        print("[menu] Lựa chọn không hợp lệ — thoát.")
-        return 2
-    item = index[int(choice)]
-    print()
-    print(render_detail(item))
-    try:
-        ok = input("[menu] Chạy pipeline luôn? (y/N): ").strip().lower()
-    except EOFError:
-        ok = "n"
-    if ok != "y":
-        print("[menu] Đã hủy. Lệnh đầy đủ in ở trên — có thể copy chạy tay.")
+    if args.goal:
+        rows = search_features(args.goal)
+        if not rows:
+            print("[menu] Không tìm thấy chức năng khớp %r — thử từ khóa khác "
+                  "(vd: frida, patch, build, apk...)." % args.goal)
+            return 1
+        print(render_search(rows))
         return 0
-    return run_pipeline(item, values={})
+    if args.run:
+        item = find_item(args.run)
+        if item is None:
+            print("[menu] Không có ID %r. Xem danh sách: "
+                  "python3 patchx menu --list" % args.run)
+            return 2
+        print(render_detail(item))
+        print()
+        values = _parse_set(args.set)
+        if not args.no_confirm:
+            try:
+                ok = input("[menu] Chạy pipeline luôn? (y/N): ").strip().lower()
+            except EOFError:
+                ok = "n"
+            if ok != "y":
+                print("[menu] Đã hủy. Dùng --no-confirm để chạy ngay.")
+                return 0
+        return run_pipeline(item, values=values, interactive=False)
+
+    return interactive_cli_menu()
 
 
 if __name__ == "__main__":
