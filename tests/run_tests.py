@@ -2342,6 +2342,166 @@ def test_diff_apk():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def _make_pairip_tree(root):
+    """Tao cay APK gia co PairIP (com/pairip) du 7 muc tieu va."""
+    pairip = os.path.join(root, "smali", "com", "pairip")
+    app_dir = os.path.join(pairip, "application")
+    lc_dir = os.path.join(pairip, "licensecheck")
+    os.makedirs(app_dir)
+    os.makedirs(lc_dir)
+    with open(os.path.join(app_dir, "Application.smali"), "w",
+              encoding="utf-8") as f:
+        f.write(".class public Lcom/pairip/application/Application;\n"
+                ".super Landroid/app/Application;\n\n"
+                ".method protected attachBaseContext("
+                "Landroid/content/Context;)V\n"
+                "    .locals 0\n\n"
+                "    invoke-static {p1}, "
+                "Lcom/pairip/licensecheck/LicenseClient;->checkLicense("
+                "Landroid/content/Context;)V\n\n"
+                "    invoke-super {p0, p1}, "
+                "Lcom/pairip/application/Application;->attachBaseContext("
+                "Landroid/content/Context;)V\n\n"
+                "    return-void\n"
+                ".end method\n")
+    with open(os.path.join(lc_dir, "LicenseContentProvider.smali"), "w",
+              encoding="utf-8") as f:
+        f.write(".class public Lcom/pairip/licensecheck/"
+                "LicenseContentProvider;\n"
+                ".super Landroid/content/ContentProvider;\n\n"
+                ".method public onCreate()Z\n"
+                "    .locals 1\n\n"
+                "    invoke-virtual {p0}, Lcom/pairip/licensecheck/"
+                "LicenseContentProvider;->getContext()"
+                "Landroid/content/Context;\n\n"
+                "    move-result-object v0\n\n"
+                "    invoke-static {v0}, "
+                "Lcom/pairip/licensecheck/LicenseClient;->checkLicense("
+                "Landroid/content/Context;)V\n\n"
+                "    const/4 v0, 0x1\n\n"
+                "    return v0\n"
+                ".end method\n")
+    with open(os.path.join(lc_dir, "LicenseClient.smali"), "w",
+              encoding="utf-8") as f:
+        f.write(".class public Lcom/pairip/licensecheck/LicenseClient;\n"
+                ".super Ljava/lang/Object;\n\n"
+                ".method public static checkLicense(Landroid/content/Context;)V\n"
+                "    .locals 2\n\n"
+                '    const-string v0, "LicenseClient"\n\n'
+                "    invoke-static {v0, v0}, Landroid/util/Log;->i("
+                "Ljava/lang/String;Ljava/lang/String;)I\n\n"
+                "    return-void\n"
+                ".end method\n\n"
+                ".method static stopTrial(Landroid/content/Context;)V\n"
+                "    .locals 2\n\n"
+                '    const-string v0, "LicenseClient"\n\n'
+                "    invoke-static {v0, v0}, Landroid/util/Log;->i("
+                "Ljava/lang/String;Ljava/lang/String;)I\n\n"
+                "    return-void\n"
+                ".end method\n\n"
+                ".method protected handleTrialEnd()V\n"
+                "    .locals 2\n\n"
+                '    const-string v0, "LicenseClient"\n\n'
+                "    invoke-static {v0, v0}, Landroid/util/Log;->i("
+                "Ljava/lang/String;Ljava/lang/String;)I\n\n"
+                "    return-void\n"
+                ".end method\n\n"
+                ".method public initializeLicenseCheck()V\n"
+                "    .locals 2\n\n"
+                '    const-string v0, "LicenseClient"\n\n'
+                "    invoke-static {v0, v0}, Landroid/util/Log;->i("
+                "Ljava/lang/String;Ljava/lang/String;)I\n\n"
+                "    return-void\n"
+                ".end method\n")
+    with open(os.path.join(lc_dir, "LicenseActivity.smali"), "w",
+              encoding="utf-8") as f:
+        f.write(".class public Lcom/pairip/licensecheck/LicenseActivity;\n"
+                ".super Landroid/app/Activity;\n\n"
+                ".method public onStart()V\n"
+                "    .locals 2\n\n"
+                "    invoke-super {p0}, Landroid/app/Activity;->onStart()V\n\n"
+                '    const-string v0, "activitytype"\n\n'
+                "    return-void\n"
+                ".end method\n")
+    with open(os.path.join(root, "AndroidManifest.xml"), "w",
+              encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="utf-8"?>\n'
+                '<manifest xmlns:android="http://schemas.android.com/apk/'
+                'res/android" package="com.demo">\n'
+                '    <application android:name="com.pairip.application.'
+                'Application">\n'
+                '        <activity android:name="com.pairip.licensecheck.'
+                'LicenseActivity"/>\n'
+                "    </application>\n"
+                "</manifest>\n")
+    return root
+
+
+def test_pairip_bypass():
+    """pairip-bypass: detect + ke hoach + --apply patch + idempotent."""
+    from patchx_core.behavior.pairip_bypass import (
+        detect_pairip, build_pairip_plan, apply_pairip_bypass)
+    d = tempfile.mkdtemp(dir=TMP, prefix="patchx_pairip_")
+    try:
+        tree = os.path.join(d, "tree")
+        os.makedirs(tree)
+        _make_pairip_tree(tree)
+
+        det = detect_pairip(tree)
+        check("pairip-bypass: phat hien PairIP",
+              det["found"] and det["license_client"]
+              and det["manifest_hits"], str(det))
+
+        plan = build_pairip_plan(tree)
+        stats = plan["stats"]
+        check("pairip-bypass: ke hoach du 7 muc tieu, deu patchable",
+              stats["total"] == 7 and stats["patchable"] == 7
+              and stats["already_patched"] == 0, str(stats))
+
+        out = os.path.join(d, "out")
+        rep = apply_pairip_bypass(tree, out_dir=out, apply=True)
+        patched = rep["patched"]
+        check("pairip-bypass: --apply patch 7/7 + backup tu dong",
+              patched["success"] == 7 and patched["failed"] == 0
+              and os.path.isdir(os.path.join(out, "backup"))
+              and len(patched["backup_files"]) == 4, str(patched))
+
+        app = open(os.path.join(tree, "smali", "com", "pairip",
+                                "application", "Application.smali"),
+                   encoding="utf-8").read()
+        check("pairip-bypass: Application bo checkLicense",
+              "LicenseClient;->checkLicense" not in app, app)
+
+        client = open(os.path.join(tree, "smali", "com", "pairip",
+                                   "licensecheck", "LicenseClient.smali"),
+                      encoding="utf-8").read()
+        check("pairip-bypass: LicenseClient.checkLicense thanh no-op",
+              client.count("return-void") == 4
+              and 'const-string v0, "LicenseClient"' not in client,
+              client)
+
+        activity = open(os.path.join(tree, "smali", "com", "pairip",
+                                     "licensecheck",
+                                     "LicenseActivity.smali"),
+                        encoding="utf-8").read()
+        check("pairip-bypass: LicenseActivity.onStart tu finish",
+              "->finish()V" in activity, activity)
+
+        rep2 = apply_pairip_bypass(tree, out_dir=out, apply=True)
+        patched2 = rep2["patched"]
+        check("pairip-bypass: idempotent - lan 2 khong dong smali",
+              patched2["success"] == 0 and patched2["already"] == 7,
+              str(patched2))
+
+        clean = os.path.join(d, "clean")
+        os.makedirs(clean)
+        det2 = detect_pairip(clean)
+        check("pairip-bypass: cay khong co PairIP -> not found",
+              not det2["found"], str(det2))
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def test_behavior_aux_modules():
     """Smoke offline cho 4 module behavior chưa có test riêng:
     frida_generator, crypto_interceptor, gadget_pipeline, remote_controller."""
@@ -2631,7 +2791,7 @@ def test_bypass_advisor():
         "chi_tiết": [{"khối": 1, "loại": "MATCH_REPLACE",
                       "target": "smali/a.smali", "khớp": 8,
                       "tệp_trúng": ["smali/a.smali"],
-                      "biến_thể": ["Mở rộng MATCH"], "ngoài_target": []}],
+                      "biến_thể": ["Mở rộng MATCH"], "ngoai_target": []}],
         "modern_ratio": 0.5,
     }]
     combos = [{"patches": ["P1", "P2"], "capabilities": ["bypass-license"],
@@ -2762,8 +2922,8 @@ def test_coverage_fast_equiv():
         same = (old["quy_tắc_khớp"] == new["quy_tắc_khớp"]
                 and d_old["khớp"] == d_new["khớp"]
                 and d_old["tệp_trúng"] == d_new["tệp_trúng"]
-                and [x[0] for x in d_old["ngoài_target"]]
-                == [x[0] for x in d_new["ngoài_target"]])
+                and [x[0] for x in d_old["ngoai_target"]]
+                == [x[0] for x in d_new["ngoai_target"]])
         check("coveq: fast scan cho kết quả tương đương đường quét cũ",
               same, "old=%s new=%s" % (d_old["khớp"], d_new["khớp"]))
     finally:
@@ -2795,8 +2955,8 @@ def test_coverage_regex_fast_equiv():
         same = (old["quy_tắc_khớp"] == new["quy_tắc_khớp"]
                 and d_old["khớp"] == d_new["khớp"]
                 and d_old["tệp_trúng"] == d_new["tệp_trúng"]
-                and [x[0] for x in d_old["ngoài_target"]]
-                == [x[0] for x in d_new["ngoài_target"]])
+                and [x[0] for x in d_old["ngoai_target"]]
+                == [x[0] for x in d_new["ngoai_target"]])
         check("coveq-re: regex lọc bằng hint cho kết quả tương đương đường cũ",
               same, "old=%s new=%s" % (d_old["khớp"], d_new["khớp"]))
     finally:
@@ -4471,6 +4631,7 @@ def main():
     test_plan_ui_render()
     test_terminal_ui_vietnamese()
     test_res_attr_autofix()
+    test_pairip_bypass()
     test_behavior_aux_modules()
     test_fixtures_mau()
     test_session_selector()

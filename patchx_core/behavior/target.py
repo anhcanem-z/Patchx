@@ -565,7 +565,7 @@ class TargetAnalyzer:
         elif category == "thanh toan google play":
             user_options = [
                 "Patch `getPurchaseState()` tra ve 0 (PURCHASED).",
-                "Override callback `onPurchasesUpđạted()` luon chuyen `BillingResult.getResponseCode()` ve OK (0).",
+                "Override callback `onPurchasesUpdated()` luon chuyen `BillingResult.getResponseCode()` ve OK (0).",
                 "Hook `BillingClient.isReady()` va `queryPurchasesAsync()` tra ve danh sach goi da mua thanh cong.",
             ]
             auto_strategy = {

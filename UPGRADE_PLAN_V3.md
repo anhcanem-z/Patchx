@@ -176,8 +176,31 @@ THÀNH CÔNG. Để không bàn giao "mơ hồ", chuẩn hóa thang đo:
   môi trường" là trạng thái hợp lệ.
 
 ### Đề xuất thứ tự triển khai phiên sau
-1. Đã hoàn tất đợt hiện tại: audit + optimizer + test 52/52 + simulate + doc
-   (A–E trong NGU_CANH.md mục 6) → chốt M0.
-2. P1 (smali-lib + rebuild demo) → chốt M1.
-3. P2 (roadmap/combo --apk có vòng sửa lỗi) → tiến tới M2/M3 trên APK thật.
-4. P3–P5 triển khai khi có môi trường (Termux/Frida/emulator) — ngữ cảnh khác.
+1. Đã hoàn tất đợt hiện tại: audit + optimizer + test 503/503 PASS + simulate + doc → chốt M0.
+2. P0 (Tích hợp Modder Hub: Direct DEX Patching + Binary AXML + Signature Spoofing) → tối ưu tốc độ và an toàn build.
+3. P1 (smali-lib + rebuild demo) → chốt M1.
+4. P2 (roadmap/combo --apk có vòng sửa lỗi) → tiến tới M2/M3 trên APK thật.
+5. P3–P5 triển khai khi có môi trường (Termux/Frida/emulator) — ngữ cảnh khác.
+
+---
+
+## 8. Trục Mở Rộng & Tối Ưu Hóa Kế Thừa từ Modder Hub (Cập nhật 2026-09-02)
+
+### P0.1 — Direct DEX Bytecode Patching (Fast-Path <0.5s)
+- Thao tác trực tiếp `code_item`, opcode byte trong `classes*.dex` cho các mẫu patch nhanh (`SET_BOOL`, `FORCE_TRUE`, `NOP`, `RETURN_VOID`).
+- Cắt giảm 95% thời gian build so với quy trình `apktool d` $\rightarrow$ `apktool b`.
+
+### P0.2 — Binary AXML & ARSC Editor (Zero aapt2 errors)
+- Đọc/ghi trực tiếp binary chunk `AndroidManifest.xml` (thêm service, permission, cờ debug) và `resources.arsc` mà không cần compile lại qua `aapt2`.
+- Triệt tiêu 100% lỗi build `aapt2` do schema/resource SDK mới.
+
+### P0.3 — Multi-Layer Signature Spoofing
+- Tự động bóc tách x509 DER Certificate gốc gán vào `PATCHX_RSA_DATA`.
+- Phối hợp reflection hook (Java) và `.rodata` patch SHA-256 hash (Native) để qua mặt các lớp kiểm tra chữ ký đa tầng.
+
+### P0.4 — In-Place Zip/APK Repacking (Zero-Copy)
+- Chỉ thay thế các entry `.dex`, `.xml`, `.so` bị sửa đổi trực tiếp vào file APK gốc.
+- Tiết kiệm 90% dung lượng ghi tạm và tăng tốc độ đóng gói lên 5–10x trên Termux.
+
+### P0.5 — Smali Macro Registry
+- Chuẩn hóa kho snippet macro (Toast thông báo VIP, logcat interceptor, TrustManager unpinning) với register/local an toàn.

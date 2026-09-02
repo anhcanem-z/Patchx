@@ -2134,6 +2134,50 @@ def cmd_smart_patch(args):
     return 0
 
 
+def cmd_pairip_bypass(args):
+    """pairip-bypass — vô hiệu hóa PairIP (license check) trên cây APK."""
+    from .behavior.pairip_bypass import apply_pairip_bypass
+    out_dir = args.out_dir or os.path.join(
+        BASE_DIR, "outputs", "behavior", "pairip_bypass")
+    print("[patchx] Chay pairip-bypass:")
+    print("  detect -> plan -> [--apply] backup + patch (idempotent)")
+    print("  Cây APK: %s" % args.thu_muc)
+    try:
+        report = apply_pairip_bypass(
+            args.thu_muc,
+            out_dir=out_dir,
+            apply=args.apply,
+            backup=not args.no_backup,
+            dry_run=args.dry_run,
+        )
+    except Exception as exc:
+        print("[patchx] LỖI pairip-bypass: %s" % exc)
+        return 1
+    det = report["detected"]
+    if not det["found"]:
+        print("[patchx] KHONG phat hien PairIP (com.pairip.*) trong cay APK.")
+        print("[patchx] Bao cao: %s" % out_dir)
+        return 0
+    stats = report["plan"]["stats"]
+    print("[patchx] PairIP: co | Manifest khớp: %d | Lib native: %d" % (
+        len(det["manifest_hits"]), len(det["native_libs"])))
+    print("[patchx] Plan: %d muc | Can va: %d | Da va san: %d | "
+          "Thieu file/method: %d" % (
+              stats["total"], stats["patchable"],
+              stats["already_patched"],
+              stats["not_found"] + stats["method_missing"]))
+    patched = report.get("patched")
+    if patched:
+        print("[patchx] Da patch: %d thanh cong, %d loi (da va san: %d)" % (
+            patched["success"], patched["failed"], patched.get("already", 0)))
+        print("[patchx] Backup: %s" % patched.get("backup_dir") or "—")
+    else:
+        print("[patchx] Chi lap ke hoach (dung --apply de ghi smali, "
+              "backup tu dong)")
+    print("[patchx] Bao cao: %s" % out_dir)
+    return 0
+
+
 def cmd_behavior_pipeline(args):
     from .behavior.pipeline import run_frida_pipeline
 
@@ -2311,6 +2355,21 @@ def main(argv=None):
     p.add_argument("--apply", action="store_true",
                    help="Ghi đè smali (backup tự động); mặc định chỉ lập kế hoạch")
     p.set_defaults(func=cmd_smart_patch)
+
+    p = sub.add_parser("pairip-bypass",
+                       help="Vo hieu hoa PairIP (license check) tren cay APK")
+    p.add_argument("thu_muc", help="Cây APK đã giải mã")
+    p.add_argument("-o", "--out-dir", default=None,
+                   help="Thư mục đầu ra "
+                        "(mặc định outputs/behavior/pairip_bypass)")
+    p.add_argument("--apply", action="store_true",
+                   help="Ghi đè smali (backup tự động); "
+                        "mặc định chỉ lập kế hoạch")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Chỉ lập kế hoạch, không ghi (ưu tiên hơn --apply)")
+    p.add_argument("--no-backup", action="store_true",
+                   help="Không sao lưu trước khi ghi")
+    p.set_defaults(func=cmd_pairip_bypass)
 
     p = sub.add_parser("scan", help="Quét thư mục patch và in tóm tắt")
     p.add_argument("thu_muc", help="Thư mục chứa các tệp .zip")

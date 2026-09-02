@@ -224,7 +224,7 @@ def modern_class_kind(descriptor):
         return "kotlin-metadata", name
     if "$" in name:
         return "inner", name
-    return "thuong", name
+    return "thường", name
 
 
 def kotlin_metadata_present(smali_text):

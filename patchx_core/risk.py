@@ -9,25 +9,25 @@ import re
 
 
 RISK_RULES = [
-    ("gui-du-lieu",
+    ("gửi-dữ-liệu",
      "URL http/https trong noi dung patch — co the gui du lieu ra ngoai",
      re.compile(r"https?://", re.I)),
-    ("gui-du-lieu",
+    ("gửi-dữ-liệu",
      "goi HttpURLConnection / Socket / OkHttp / Retrofit trong smali",
      re.compile(r"(HttpURLConnection|Ljava/net/Socket|okhttp|Retrofit)",
                 re.I)),
-    ("tat-bao-mat",
+    ("tắt-bảo-mật",
      "vo hieu hoa kiem tra (sigcheck/verify) hoac bat debuggable/cleartext",
      re.compile(r"(sigcheck|verify\s*\(|allowBackup=\"true\"|"
                 r"usesCleartextTraffic=\"true\"|debuggable=\"true\")", re.I)),
-    ("quyen-he-thong",
+    ("quyền-hệ-thống",
      "cap quyen he thong (pm grant / setComponentEnabledSetting)",
      re.compile(r"(pm grant|setComponentEnabledSetting|grantUriPermission)",
                 re.I)),
-    ("thu-thap",
+    ("thu-thập",
      "doc du lieu nhay cam (IMEI / device id / tai khoan / oauth)",
      re.compile(r"(getDeviceId|IMEI|getSubscriberId|getAccounts|oauth)", re.I)),
-    ("mang-ngam",
+    ("mạng-ngầm",
      "REMOTE_CONFIG / CONFIG_URL — tai cau hinh tu xa",
      re.compile(r"CONFIG_URL|REMOTE_CONFIG")),
 ]

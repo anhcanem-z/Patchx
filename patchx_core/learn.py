@@ -14,12 +14,12 @@ from .session import load_patch_map
 
 CATEGORY_KEYWORDS = [
     ("game", ("unity", "garena", "supercell", "riot", "vng", "game",
-              "com.têncent", "miHoYo", "hoyoverse")),
-    ("ngan hang/tai chinh", ("bank", "vpbank", "timo", "momo", "zalopay",
+              "com.tencent", "miHoYo", "hoyoverse")),
+    ("ngân hàng/tài chính", ("bank", "vpbank", "timo", "momo", "zalopay",
                              "vnptpay", "pay", "finance")),
-    ("mang xa hoi", ("facebook", "zalo", "messenger", "tiktok", "whatsapp",
+    ("mạng xã hội", ("facebook", "zalo", "messenger", "tiktok", "whatsapp",
                      "telegram", "social")),
-    ("mua sam", ("shopee", "lazada", "tiki", "sendo", "amazon", "shopping")),
+    ("mua sắm", ("shopee", "lazada", "tiki", "sendo", "amazon", "shopping")),
 ]
 
 INTENT_KEYWORDS = {
@@ -56,6 +56,7 @@ def record_success(root, entry):
         except Exception:
             data = []
     data.append(dict(entry, ts=time.strftime("%Y-%m-%d %H:%M:%S")))
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
     return path

@@ -128,7 +128,7 @@ DEFAULT_FAILURES = [
     {
         "error_id": "F-SEM-003",
         "stage": "PREFLIGHT",
-        "pattern": r"cây APK da thay doi",
+        "pattern": r"cây APK (da|đã) thay (doi|đổi)",
         "cause": ("Draft V2 khoa hash cây APK, nhung cây da bi sua sau khi "
                   "compile plan — evidence khong con dung."),
         "fix": ("Khong ap draft: chay lai semantic-plan + plan-compile tren "

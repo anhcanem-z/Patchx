@@ -39,7 +39,7 @@ BEHAVIORS = {
         "label": "Thanh toan Google Play Billing",
         "description": "Ung dung tich hop thu vien Google Play In-App Billing (com.android.billingclient).",
         "suggestions": [
-            "Override callback BillingClient / `onPurchasesUpđạted()` luon tra ve BillingResponseCode.OK (0x0)",
+            "Override callback BillingClient / `onPurchasesUpdated()` luon tra ve BillingResponseCode.OK (0x0)",
             "Patch `getPurchaseState()` tra ve `0` (PURCHASED)",
             "Hook `queryPurchasesAsync()` de gia lap danh sach Purchase hop le",
         ],

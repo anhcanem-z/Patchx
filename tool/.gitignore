@@ -1,0 +1,12 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+.idea/
+*.iml
+__pycache__/
+aiohttp
+aiohttp-build.log
+output/

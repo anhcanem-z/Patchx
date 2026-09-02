@@ -1,0 +1,3 @@
+./tests/fixtures/mini_app.apk
+./tool/app/build/outputs/apk/debug/app-debug.apk
+./tool/app/build/outputs/apk/release/app-release.apk

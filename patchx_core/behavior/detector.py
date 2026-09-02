@@ -53,8 +53,8 @@ class BehaviorDetector:
         "premium",
         # Google Play Billing
         "BillingClient",
-        "PurchasesUpđạtedListêner",
-        "onPurchasesUpđạted",
+        "PurchasesUpdatedListener",
+        "onPurchasesUpdated",
         "queryPurchasesAsync",
         "getPurchaseState",
         "BillingResult",
@@ -187,7 +187,7 @@ class BehaviorDetector:
     )
 
     BILLING_APIS = (
-        "onPurchasesUpđạted",
+        "onPurchasesUpdated",
         "queryPurchasesAsync",
         "getPurchaseState",
         "BillingClient",
@@ -946,8 +946,8 @@ class BehaviorDetector:
             patterns = (
                 r"com/android/billingclient",
                 r"BillingClient",
-                r"PurchasesUpđạtedListêner",
-                r"onPurchasesUpđạted",
+                r"PurchasesUpdatedListener",
+                r"onPurchasesUpdated",
                 r"queryPurchasesAsync",
                 r"getPurchaseState",
                 r"BillingResult",

@@ -281,8 +281,8 @@ def flow_summary_text(flow):
     s = flow["summary"]
     by_type = ", ".join("%s=%d" % (k, v)
                         for k, v in sorted(s.get("nodes_by_type", {}).items()))
-    return ("Cay: %s\nLuồng quyết định/du lieu: %d method, %d canh goi\n"
-            "Phan loại: %s\nDiem quyet dinh co duong toi sink: %d\n"
+    return ("Cay: %s\nLuồng quyết định/dữ liệu: %d method, %d canh goi\n"
+            "Phân loại: %s\nĐiểm quyết định có đường tới sink: %d\n"
             % (flow.get("tree", ""), s.get("methods", 0), s.get("edges", 0),
                by_type or "—", s.get("decisions_with_sinks", 0)))
 
@@ -383,6 +383,6 @@ def dataflow_summary_text(flow):
     types = ", ".join("%s=%d" % (k, v)
                       for k, v in sorted(s.get("data_types", {}).items()))
     return ("Cay: %s\nData-flow: %d method, %d canh goi\n"
-            "Vai tro: %s\nKieu du lieu: %s\nDiem quyet dinh toi sink: %d\n"
+            "Vai trò: %s\nKiểu dữ liệu: %s\nĐiểm quyết định tới sink: %d\n"
             % (flow.get("tree", ""), s.get("methods", 0), s.get("edges", 0),
                roles or "—", types or "—", s.get("decisions_with_sinks", 0)))

@@ -79,7 +79,7 @@ def validate_record_v2(record):
         return ["schema phai la %s" % SCHEMA_V2]
     payload_path = _find_execution_payload(record)
     if payload_path:
-        errors.append("record V2 khong duoc chua payload/lệnh thuc thi: " + payload_path)
+        errors.append("record V2 không được chứa payload/lệnh thực thi: " + payload_path)
     app = record.get("app", {})
     if not isinstance(app, dict) or not app.get("package"):
         errors.append("app.package la bat buoc")
@@ -166,7 +166,7 @@ def query_similar_v2(store_path, model, goal=None, limit=10):
             out.append({"record": record, "matched_method": method["id"],
                         "file": method["file"], "line": method["line"],
                         "confidence": score, "identity_matches": matches,
-                        "recommenđạtion_only": True})
+                        "recommendation_only": True})
     out.sort(key=lambda x: (-x["confidence"], x["record"].get("outcome") != "SUCCESS",
                             x["matched_method"]))
     return out[:limit]
@@ -230,4 +230,4 @@ def suggest_plan_v2(store_path, model, goal=None, limit=10):
             "targets": targets, "operation_intent": intents,
             "verification": ["preflight", "validate", "build", "runtime"],
             "provenance": {"source": "patchx.knowledge-record/v2",
-                           "recommenđạtion_only": True}}
+                           "recommendation_only": True}}

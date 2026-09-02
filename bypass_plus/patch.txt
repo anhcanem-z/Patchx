@@ -1,0 +1,34 @@
+# Fixture patch cho test remote trace/force — giữ cú pháp patchx chuẩn.
+
+[MIN_ENGINE_VER]
+2
+
+[AUTHOR]
+patchx-test-fixture
+
+[PACKAGE]
+*
+
+[MATCH_REPLACE]
+TARGET:
+smali_classes4/com/zaz/account/uc.smali
+MATCH:
+return v0
+REGEX:
+false
+REPLACE:
+const/4 v0, 0x1
+return v0
+[/MATCH_REPLACE]
+
+[MATCH_REPLACE]
+TARGET:
+smali_classes4/com/zaz/subscription/manager/ua.smali
+MATCH:
+return v0
+REGEX:
+false
+REPLACE:
+const/4 v0, 0x1
+return v0
+[/MATCH_REPLACE]

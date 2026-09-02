@@ -744,7 +744,7 @@ def coverage_patch_cached(patch, tree_root, texts=None, eng=None, fast=True,
         "quy_tắc": total_rules,
         "quy_tắc_khớp": matched_rules,
         "tỷ_lệ": (matched_rules / total_rules) if total_rules else 0.0,
-        "mau_bỏ_qua": skipped_rules,
+        "mẫu_bỏ_qua": skipped_rules,
         "mode": mode,
         "chi_tiết": results,
     }

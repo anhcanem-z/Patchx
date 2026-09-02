@@ -260,3 +260,10 @@ GHI CHÚ
 - `patchx smart-patch CÂY [--apply]` — lập kế hoạch/áp patch smali
   thông minh: tái dùng detector behavior (kể cả nhánh obfuscated-*),
   chống R8/D8; `--apply` ghi đè smali (backup tự động).
+- `patchx pairip-bypass CÂY [--apply]` — vô hiệu hóa PairIP (license
+  check, `com.pairip.*`) trên cây APK: bỏ gọi `checkLicense` ở
+  `Application.attachBaseContext` + `LicenseContentProvider.onCreate`,
+  nop 4 method `LicenseClient` (`checkLicense`/`stopTrial`/`handleTrialEnd`/
+  `initializeLicenseCheck`), `LicenseActivity.onStart` tự `finish`;
+  `--apply` ghi đè smali (backup tự động, idempotent); báo cáo tại
+  `outputs/behavior/pairip_bypass/`.

@@ -123,7 +123,7 @@ def validate_plan_v2(plan):
             # plan-compile cung dua vao bat bien nay de khong phai phat hien
             # muon mot plan khong the tao draft.
             if maximum != 1:
-                errors.append(where + " policy.max_accepted phai bang 1 (nhieu ung vien luon STOP)")
+                errors.append(where + " policy.max_accepted phải bằng 1 (nhiều ứng viên luôn STOP)")
             if policy.get("on_ambiguous") != "STOP":
                 errors.append(where + " policy.on_ambiguous phai la STOP")
     intents = plan.get("operation_intent")
@@ -399,4 +399,4 @@ def plan_v2_from_version_map(version_map, original_model, modified_model,
             "operation_intent": intents,
             "verification": ["preflight", "validate", "build", "runtime"],
             "provenance": {"source": "patchx.version-match/v1",
-                           "recommenđạtion_only": True}}
+                           "recommendation_only": True}}

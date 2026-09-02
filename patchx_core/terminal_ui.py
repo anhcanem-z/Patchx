@@ -33,7 +33,7 @@ class TerminalUI:
 
     def render_header(self):
         self._line("=" * 62)
-        self._line("PATCHX — GIAO DIEN CLI TIENG VIET")
+        self._line("PATCHX — GIAO DIỆN CLI TIẾNG VIỆT")
         self._line("Che do an toan: chi doc; khong tu ap patch hoac tao APK.")
         self._line("=" * 62)
 
@@ -57,7 +57,7 @@ class TerminalUI:
         groups = nav.get("groups", [])
         total = sum(len(group.get("targets", [])) for group in groups)
         missing = 0
-        self._line("\nBAN DO VAN HANH — %d nhóm, %d lien ket" % (len(groups), total))
+        self._line("\nBẢN ĐỒ VẬN HÀNH — %d nhóm, %d liên kết" % (len(groups), total))
         for group in groups:
             self._line("- %s: %s" % (group.get("id", "?"),
                                       group.get("role", "Khong mo ta")))
@@ -66,8 +66,8 @@ class TerminalUI:
                 ok = os.path.exists(full)
                 missing += 0 if ok else 1
                 self._line("    %s %s" % ("✓" if ok else "✗", target))
-        self._line("Ket qua lien ket: %s" % ("PASS" if not missing
-                                               else "FAIL — thieu %d target" % missing))
+        self._line("Kết quả liên kết: %s" % ("PASS" if not missing
+                                               else "FAIL — thiếu %d target" % missing))
         return 0 if not missing else 1
 
     def v2_status(self):
@@ -122,7 +122,7 @@ class TerminalUI:
                    "3": self.patch_summary, "4": self.safe_workflow}
         action = actions.get(choice)
         if action is None:
-            self._line("Lua chon khong hop le. Nhap 0–4.")
+            self._line("Lựa chọn không hợp lệ. Nhập 0–4.")
             return None
         return action()
 
@@ -137,10 +137,10 @@ class TerminalUI:
             try:
                 choice = self.input("\nChon chuc nang [0-4]: ").strip()
             except (EOFError, KeyboardInterrupt):
-                self._line("\nDa thoat UI CLI.")
+                self._line("\nĐã thoát UI CLI.")
                 return 0
             if choice == "0":
-                self._line("Da thoat UI CLI. Khong co du lieu nao bi thay doi.")
+                self._line("Đã thoát UI CLI. Không có dữ liệu nào bị thay đổi.")
                 return 0
             self.execute(choice)
 

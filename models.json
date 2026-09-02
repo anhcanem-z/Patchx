@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "default_model": "deepseek-v4-pro",
+
+  "models": {
+    "deepseek-v4-pro": {
+      "role": "deep_analysis",
+      "temperature": 0.15,
+      "max_output_tokens": 8192
+    },
+    "deepseek-v4-flash": {
+      "role": "fast_analysis",
+      "temperature": 0.10,
+      "max_output_tokens": 4096
+    },
+    "deepseek-v4-flash-vision-exp": {
+      "role": "visual_analysis",
+      "temperature": 0.10,
+      "max_output_tokens": 4096
+    }
+  },
+
+  "routing": {
+    "smali_analysis": "deepseek-v4-pro",
+    "dex_analysis": "deepseek-v4-pro",
+    "behavior_analysis": "deepseek-v4-pro",
+    "semantic_plan": "deepseek-v4-pro",
+    "api_search": "deepseek-v4-flash",
+    "keyword_search": "deepseek-v4-flash",
+    "code_explanation": "deepseek-v4-flash",
+    "patch_validation": "deepseek-v4-pro",
+    "visual_analysis": "deepseek-v4-flash-vision-exp"
+  },
+
+  "apk_analysis": {
+    "preserve_original": true,
+    "prefer_minimal_changes": true,
+    "require_evidence_before_patch": true,
+    "require_validation_after_patch": true,
+    "avoid_guessing": true,
+    "analyze_all_dex": true,
+    "analyze_manifest": true,
+    "analyze_native_libs": true
+  },
+
+  "output": {
+    "language": "vi",
+    "include_confidence": true,
+    "include_evidence": true,
+    "include_file_locations": true,
+    "include_risk": true,
+    "structured_json": true
+  }
+}

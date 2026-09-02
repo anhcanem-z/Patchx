@@ -78,7 +78,7 @@ class SmaliPatcher:
         path = Path(file_path)
         content = path.read_text(encoding="utf-8", errors="ignore")
 
-        if "getResponseCode" in content or "onPurchasesUpđạted" in content:
+        if "getResponseCode" in content or "onPurchasesUpdated" in content:
             # Chen return 0 (OK) cho Response Code
             pattern = re.compile(r"(\.method[^\n]*getResponseCode[^\n]*\n)(.*?)(\.end\s+method)", re.DOTALL)
             new_content, count = pattern.subn(
