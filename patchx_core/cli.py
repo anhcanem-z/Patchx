@@ -855,6 +855,55 @@ def cmd_capabilities(args):
     print("Đã ghi:", outputs["markdown"])
     return 0
 
+
+def cmd_pipeline(args):
+    """Điều phối Pipeline Thống Nhất cho artifact Android."""
+    from .pipeline_unified import run_pipeline
+    out_dir = args.output_dir or os.path.join(BASE_DIR, "outputs", "pipeline")
+    dex_str = {}
+    for kv in args.dex_str or []:
+        if "=" in kv:
+            k, v = kv.split("=", 1)
+            dex_str[k] = v
+    dex_hex = {}
+    for kv in args.dex_hex or []:
+        if "=" in kv:
+            k, v = kv.split("=", 1)
+            dex_hex[k] = v
+    axml_str = {}
+    for kv in args.axml or []:
+        if "=" in kv:
+            k, v = kv.split("=", 1)
+            axml_str[k] = v
+    arsc_str = {}
+    for kv in args.arsc or []:
+        if "=" in kv:
+            k, v = kv.split("=", 1)
+            arsc_str[k] = v
+
+    print(f"[pipeline] Khởi chạy Unified Pipeline (mode: {args.mode})")
+    print(f"[pipeline] Artifact: {args.artifact}")
+    report = run_pipeline(
+        args.artifact,
+        mode=args.mode,
+        output_dir=out_dir,
+        out_apk=args.out,
+        dex_str_replaces=dex_str,
+        dex_hex_replaces=dex_hex,
+        axml_replaces=axml_str,
+        arsc_replaces=arsc_str,
+        dry_run=args.dry_run,
+        auto_patch=args.auto_patch,
+        build_apk=args.build_apk,
+    )
+    print(f"[pipeline] Kết quả: {report['verdict']} ({report['elapsed_seconds']}s)")
+    for stage in report.get("stages", []):
+        print(f"  - Stage [{stage['name']}]: {stage['status']}")
+    if report["outputs"].get("report_markdown"):
+        print("Đã ghi:", report["outputs"]["report_markdown"])
+    return 0 if report["verdict"] in ("SUCCESS", "READY") else 1
+
+
 def cmd_macro_list(args):
     from .macro_registry import list_macros, validate_macro
     for name in list_macros():
@@ -2775,6 +2824,20 @@ def main(argv=None):
     p = sub.add_parser("capabilities", help="Ghi tool_capabilities.json cho môi trường hiện tại")
     p.add_argument("-o", "--output-dir", default=None, help="Thư mục output (mặc định: outputs/intake)")
     p.set_defaults(func=cmd_capabilities)
+
+    p = sub.add_parser("pipeline", help="Khởi chạy Pipeline Thống Nhất (auto|intake|fast|behavior|native|combo)")
+    p.add_argument("artifact", help="Tệp APK, APKS, XAPK hoặc AAB")
+    p.add_argument("--mode", default="auto", choices=["auto", "intake", "fast", "behavior", "native", "combo"], help="Chế độ pipeline")
+    p.add_argument("-o", "--out", default=None, help="Đường dẫn APK đầu ra (nếu có)")
+    p.add_argument("--output-dir", default=None, help="Thư mục xuất báo cáo (mặc định: outputs/pipeline)")
+    p.add_argument("--dex-str", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi DEX in-place")
+    p.add_argument("--dex-hex", action="append", default=[], metavar="HEX1=HEX2", help="Thay bytecode DEX in-place")
+    p.add_argument("--axml", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi AXML in-place")
+    p.add_argument("--arsc", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi ARSC in-place")
+    p.add_argument("--dry-run", action="store_true", help="Chạy thử không ghi APK")
+    p.add_argument("--auto-patch", action="store_true", help="Tự động vá Smali cho behavior stage")
+    p.add_argument("--build-apk", action="store_true", help="Build APK sau khi vá")
+    p.set_defaults(func=cmd_pipeline)
 
     p = sub.add_parser("macro-list", help="Liệt kê Smali macro và yêu cầu register")
     p.add_argument("--registers", type=int, default=2, help="Số register dự kiến")

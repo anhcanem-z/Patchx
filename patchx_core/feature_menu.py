@@ -53,6 +53,8 @@ PLATFORM_BY_ID = {
     "upgrade-combo": "chung", "apply-patch": "chung", "apk-build": "chung",
     "apk-full": "chung", "coverage-roadmap": "chung", "simulate": "chung",
     "ci-golden": "chung",
+    "unified-pipeline": "chung", "fast-patch": "smali",
+    "native-sig-bypass": "native", "intake-triage": "chung",
 }
 PLATFORM_ORDER = {"native": 0, "smali": 1, "chung": 2}
 PLATFORM_LABEL = {"native": "NATIVE (.so/.elf)", "smali": "SMALI (DEX/APK)",
@@ -315,6 +317,51 @@ FEATURE_GROUPS: List[Dict[str, Any]] = [
                 "inputs": [],
                 "outputs": ["kết quả in ra màn hình"],
                 "keywords": ["selfcheck", "test", "sức khỏe", "kiểm tra", "module"],
+            },
+        ],
+    },
+    {
+        "name": "PIPELINE THỐNG NHẤT & FAST-PATH (HIỆN ĐẠI)",
+        "flow_step": 3,
+        "items": [
+            {
+                "id": "unified-pipeline",
+                "name": "Unified Pipeline — 1-Click Tự Động (Auto-Hybrid)",
+                "desc": "Tích hợp toàn diện: Intake -> Phân tích -> Fast-Path Zero-Copy "
+                        "-> Native Bypass -> Sign Debug -> Báo cáo JSON/Markdown.",
+                "pipeline": [
+                    "{PY} patchx pipeline {APK} --mode auto",
+                ],
+                "inputs": ["{APK}=file APK/APKS/XAPK/AAB"],
+                "outputs": ["outputs/pipeline/pipeline_report.json",
+                            "outputs/pipeline/pipeline_report.md"],
+                "keywords": ["pipeline", "unified", "thống nhất", "auto", "hybrid",
+                             "tự động", "1-click", "tinh gọn"],
+            },
+            {
+                "id": "fast-patch",
+                "name": "Fast-Path 1-Click (< 0.5s) — Zero-Copy In-Place Repack",
+                "desc": "Vá nhị phân DEX string/bytecode, AXML security bypass, "
+                        "ARSC string pool, gỡ chữ ký cũ, zipalign và ký debug siêu tốc.",
+                "pipeline": [
+                    "{PY} patchx fast-patch {APK} -o {OUT} --axml \"{OLD}={NEW}\"",
+                ],
+                "inputs": ["{APK}=file APK gốc", "{OUT}=file APK đã patch",
+                           "{OLD}=chuỗi gốc", "{NEW}=chuỗi mới"],
+                "outputs": ["file APK đã patch và ký"],
+                "keywords": ["fast", "fast-patch", "repack", "zero-copy", "in-place",
+                             "dex", "axml", "arsc", "nhanh"],
+            },
+            {
+                "id": "intake-triage",
+                "name": "Intake Triage — Tiếp nhận & Thẩm định Artifact (Không giải nén)",
+                "desc": "Kiểm kê DEX, ABI, native lib, manifest, split, cert SHA-256 và tool capabilities.",
+                "pipeline": [
+                    "{PY} patchx intake {APK} -o outputs/intake",
+                ],
+                "inputs": ["{APK}=file APK/APKS/XAPK/AAB"],
+                "outputs": ["outputs/intake/intake_*.json", "outputs/intake/intake_*.md"],
+                "keywords": ["intake", "triage", "tiếp nhận", "kiểm tra", "split", "aab"],
             },
         ],
     },

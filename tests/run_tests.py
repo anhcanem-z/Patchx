@@ -4607,6 +4607,41 @@ def test_intake_capabilities():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def test_unified_pipeline():
+    from patchx_core.pipeline_unified import run_pipeline, UnifiedPipeline
+    from patchx_core.cli import main as cli_main
+    d = tempfile.mkdtemp(prefix="patchx_pipe_", dir=TMP if os.path.isdir(TMP) else None)
+    try:
+        dummy_apk = os.path.join(d, "sample.apk")
+        with zipfile.ZipFile(dummy_apk, "w") as zf:
+            zf.writestr("AndroidManifest.xml", b"\x03\x00\x08\x00" + b"\x00" * 32)
+            zf.writestr("classes.dex", b"dex\n035\x00" + b"\x00" * 100)
+            zf.writestr("lib/arm64-v8a/libdemo.so", b"\x7fELF" + b"\x00" * 50)
+            zf.writestr("res/layout/main.xml", b"<xml/>")
+
+        out_pipe = os.path.join(d, "pipe_out")
+        rep_intake = run_pipeline(dummy_apk, mode="intake", output_dir=out_pipe)
+        check("pipeline: mode intake hoàn tất thành công",
+              rep_intake["verdict"] == "SUCCESS"
+              and any(s["name"] == "intake_triage" for s in rep_intake["stages"]))
+
+        rep_fast = run_pipeline(dummy_apk, mode="fast", output_dir=out_pipe)
+        check("pipeline: mode fast sinh patched apk",
+              rep_fast["verdict"] == "SUCCESS"
+              and "patched_apk" in rep_fast["outputs"])
+
+        rep_auto = run_pipeline(dummy_apk, mode="auto", output_dir=out_pipe)
+        check("pipeline: mode auto chạy hybrid và xuất báo cáo md/json",
+              rep_auto["verdict"] == "SUCCESS"
+              and os.path.isfile(rep_auto["outputs"]["report_json"])
+              and os.path.isfile(rep_auto["outputs"]["report_markdown"]))
+
+        cli_rc = cli_main(["pipeline", dummy_apk, "--mode", "intake", "--output-dir", os.path.join(d, "cli_pipe")])
+        check("pipeline: CLI lệnh chạy thành công trả 0", cli_rc == 0)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def main():
     test_baseline()
     test_combo()
@@ -4698,6 +4733,7 @@ def main():
     test_fixtures_mau()
     test_session_selector()
     test_intake_capabilities()
+    test_unified_pipeline()
     from tests.test_modder_hub_fastpath import run_all_modder_hub_tests
     run_all_modder_hub_tests(check)
     ok = sum(1 for _, c, _ in RESULTS if c)

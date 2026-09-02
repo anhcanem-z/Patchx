@@ -3,7 +3,60 @@
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+
+@dataclass
+class Evidence:
+    """Mot bang chung quan sat duoc trong APK da giai ma."""
+
+    kind: str
+    value: str
+    source: str = ""
+    weight: float = 0.5
+    details: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "value": self.value,
+            "source": self.source,
+            "weight": self.weight,
+            "details": self.details,
+        }
+
+
+@dataclass
+class Behavior:
+    """Mot nhóm hanh vi duoc phat hien tu cac bang chung."""
+
+    name: str
+    evidence: List[Evidence] = field(default_factory=list)
+    suggestions: List[str] = field(default_factory=list)
+
+    @property
+    def confidence(self) -> float:
+        if not self.evidence:
+            return 0.0
+        return round(
+            sum(item.weight for item in self.evidence) / len(self.evidence),
+            4,
+        )
+
+    def add_evidence(self, evidence: Evidence) -> None:
+        self.evidence.append(evidence)
+
+    def add_suggestions(self, suggestions: List[str]) -> None:
+        if suggestions:
+            self.suggestions.extend(suggestions)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "confidence": self.confidence,
+            "evidence": [item.to_dict() for item in self.evidence],
+            "suggestions": self.suggestions,
+        }
 
 
 @dataclass

@@ -343,3 +343,10 @@ capabilities
    Ghi snapshot kiểm tra công cụ hiện có trong môi trường (Java, JADX, aapt2, apksigner...):
        python3 patchx capabilities -o outputs/intake
 
+pipeline
+   Khởi chạy Unified Pipeline tích hợp (auto, intake, fast, behavior, native, combo):
+       python3 patchx pipeline app.apk --mode auto
+       python3 patchx pipeline app.apk --mode fast --dex-str "old=new" --axml "old=new"
+       python3 patchx pipeline app.apk --mode intake -o outputs/pipeline
+       python3 patchx pipeline app.apk --mode native
+

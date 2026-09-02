@@ -46,8 +46,8 @@ def fast_repack_apk(apk_in_path, updates_map, apk_out_path=None, strip_signature
     if not os.path.isfile(apk_in_path):
         raise FileNotFoundError("Không tìm thấy APK gốc: %s" % apk_in_path)
 
-    if not updates_map:
-        raise ValueError("updates_map không được để trống")
+    if updates_map is None:
+        raise ValueError("updates_map không được None")
 
     if apk_out_path is None:
         apk_out_path = apk_in_path + ".repack.tmp"
@@ -119,7 +119,8 @@ def fast_repack_apk(apk_in_path, updates_map, apk_out_path=None, strip_signature
 
 
 def fast_patch_and_repack(apk_path, dex_replacements=None, axml_replacements=None,
-                          arsc_replacements=None, output_apk=None, strip_signatures=True):
+                          arsc_replacements=None, output_apk=None, strip_signatures=True,
+                          allow_empty=False):
     """Quy trình Fast-Patch tích hợp khép kín:
 
     Đọc APK -> can thiệp in-place classes.dex, AndroidManifest.xml, resources.arsc -> repack siêu tốc.
@@ -201,7 +202,7 @@ def fast_patch_and_repack(apk_path, dex_replacements=None, axml_replacements=Non
                 updates["resources.arsc"] = curr_arsc
                 total_arsc_hits += arsc_hits
 
-    if not updates:
+    if not updates and not allow_empty:
         return {
             "success": False,
             "message": "Không có hit nào khớp với các pattern thay thế.",

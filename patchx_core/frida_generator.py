@@ -60,9 +60,19 @@ class FridaScriptGenerator:
         )
 
         for target in targets:
-            target_dict = target.to_dict() if hasattr(target, "to_dict") else target
-            strategy = target_dict.get("suggested_actions", {}).get("auto_strategy", {}) if isinstance(target_dict, dict) else {}
-            frida_code = strategy.get("frida_hook_script")
+            if hasattr(target, "to_frida_hook_config"):
+                hook = target.to_frida_hook_config()
+                target_info = hook.get("target", {})
+                frida_code = hook.get("frida_script")
+                if not target_info.get("class") or not target_info.get("method"):
+                    continue
+            else:
+                target_dict = target.to_dict() if hasattr(target, "to_dict") else (target if isinstance(target, dict) else {})
+                target_info = target_dict.get("target", {})
+                strategy = target_dict.get("suggested_actions", {}).get("auto_strategy", {}) if isinstance(target_dict, dict) else {}
+                frida_code = target_dict.get("frida_script") or strategy.get("frida_hook_script")
+                if not target_info.get("class") or not target_info.get("method"):
+                    continue
 
             if frida_code and frida_code not in self.hooks:
                 self.hooks.append(frida_code)
