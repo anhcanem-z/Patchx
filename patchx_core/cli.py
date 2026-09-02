@@ -746,18 +746,60 @@ def cmd_test(args):
 
 def cmd_axml_patch(args):
     """Patch chuỗi nhị phân AXML/ARSC in-place, có dry-run và backup."""
-    from .axml_editor import inspect_binary, replace_string_inplace
+    from .axml_editor import (
+        inspect_binary, replace_string_inplace,
+        inspect_manifest_security, bypass_network_security_config,
+        replace_permission
+    )
     try:
-        info=inspect_binary(args.binary)
+        if getattr(args, "inspect_security", False):
+            sec = inspect_manifest_security(args.binary)
+            print("[axml-patch] BẢO MẬT MANIFEST: %s (%d chuỗi)" % (args.binary, sec["total_strings"]))
+            print("  networkSecurityConfig : %s" % sec["has_network_security_config"])
+            print("  usesCleartextTraffic  : %s" % sec["has_uses_cleartext_traffic"])
+            print("  debuggable            : %s" % sec["has_debuggable"])
+            print("  permissions (%d)       : %s" % (len(sec["permissions"]), ", ".join(sec["permissions"][:5])))
+            if len(sec["permissions"]) > 5:
+                print("                          ... và %d quyền khác" % (len(sec["permissions"]) - 5))
+            return 0
+
+        backup = args.backup or args.binary + ".bak"
+
+        if getattr(args, "bypass_nsc", False):
+            if args.dry_run:
+                print("[axml-patch] DRY-RUN bypass networkSecurityConfig trên %s" % args.binary)
+                return 0
+            res = bypass_network_security_config(args.binary, backup_path=backup)
+            print("[axml-patch] Bypass networkSecurityConfig: %d hit, backup: %s" % (res["hits"], res["backup"] or "không tạo"))
+            return 0
+
+        if getattr(args, "replace_perm", None):
+            item = args.replace_perm
+            if "=" not in item:
+                print("[axml-patch] --replace-perm phải có dạng OLD_PERM=NEW_PERM")
+                return 2
+            old_p, new_p = item.split("=", 1)
+            if args.dry_run:
+                print("[axml-patch] DRY-RUN đổi quyền: %s -> %s" % (old_p, new_p))
+                return 0
+            res = replace_permission(args.binary, old_p, new_p, backup_path=backup)
+            print("[axml-patch] Đổi permission: %d hit, backup: %s" % (res["hits"], res["backup"] or "không tạo"))
+            return 0
+
+        if not getattr(args, "old", None) or not getattr(args, "new", None):
+            print("[axml-patch] Cần truyền chuỗi OLD và NEW hoặc dùng --inspect-security / --bypass-nsc / --replace-perm")
+            return 2
+
+        info = inspect_binary(args.binary)
         if args.dry_run:
             print("[axml-patch] DRY-RUN %s: %d bytes, %d chunk" % (args.binary, info["size"], len(info["chunks"])))
             return 0
-        backup=args.backup or args.binary+".bak"
-        result=replace_string_inplace(args.binary,args.old,args.new,backup)
-        print("[axml-patch] %d hit, backup: %s" % (result["hits"], result["backup"] or "không tạo"))
+        result = replace_string_inplace(args.binary, args.old, args.new, backup)
+        print("[axml-patch] %d hit (%s), backup: %s" % (result["hits"], result.get("encoding", "unknown"), result["backup"] or "không tạo"))
         return 0
-    except (OSError,ValueError) as exc:
-        print("[axml-patch] LỖI: %s" % exc); return 2
+    except (OSError, ValueError) as exc:
+        print("[axml-patch] LỖI: %s" % exc)
+        return 2
 
 def cmd_signature_cert(args):
     from .signature_spoof import signature_context, write_context
@@ -2478,8 +2520,11 @@ def main(argv=None):
 
     p = sub.add_parser("axml-patch", help="Patch chuỗi nhị phân AXML/ARSC có backup")
     p.add_argument("binary", help="AndroidManifest.xml hoặc resources.arsc")
-    p.add_argument("old", help="Chuỗi cũ")
-    p.add_argument("new", help="Chuỗi mới không dài hơn chuỗi cũ")
+    p.add_argument("old", nargs="?", default=None, help="Chuỗi cũ")
+    p.add_argument("new", nargs="?", default=None, help="Chuỗi mới không dài hơn chuỗi cũ")
+    p.add_argument("--inspect-security", action="store_true", help="Báo cáo thuộc tính bảo mật Manifest")
+    p.add_argument("--bypass-nsc", action="store_true", help="Vô hiệu hóa Network Security Config (bỏ SSL pinning)")
+    p.add_argument("--replace-perm", metavar="OLD=NEW", help="Đổi permission nhị phân in-place")
     p.add_argument("--backup", default=None, help="Tệp backup")
     p.add_argument("--dry-run", action="store_true", help="Chỉ inspect chunk, không ghi")
     p.set_defaults(func=cmd_axml_patch)

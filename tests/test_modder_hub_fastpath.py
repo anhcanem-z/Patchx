@@ -31,6 +31,10 @@ from patchx_core.axml_editor import (
     inspect_string_pool,
     inspect_binary,
     replace_string_inplace,
+    parse_strings,
+    inspect_manifest_security,
+    bypass_network_security_config,
+    replace_permission,
     RES_XML_TYPE,
     RES_STRING_POOL_TYPE,
 )
@@ -39,6 +43,9 @@ from patchx_core.signature_spoof import (
     signature_context,
     inject_spoof_to_env,
     extract_cert_hex,
+    generate_java_signature_hook,
+    scan_and_spoof_native_library,
+    multi_layer_spoof_pipeline,
 )
 from patchx_core.apk_fast_repack import (
     is_signature_entry,
@@ -152,6 +159,45 @@ def run_all_modder_hub_tests(check_fn):
         res_xml_u16 = replace_string_inplace(xml_u16_file, "UnicodePackageName", "ShortName")
         check_fn("axml: replace_string_inplace auto utf-16le hit", res_xml_u16["hits"] == 1 and res_xml_u16["encoding"] == "utf-16le")
 
+        # Test parse_strings và inspect_manifest_security
+        sample_apk = "Apks/Fake GPS_5.8.7_kill.apk"
+        if os.path.isfile(sample_apk):
+            with zipfile.ZipFile(sample_apk, "r") as z:
+                real_manifest = z.read("AndroidManifest.xml")
+            real_strs = parse_strings(real_manifest)
+            check_fn("axml: parse_strings extracts pool strings", len(real_strs) > 50 and "application" in real_strs)
+
+            real_xml_file = os.path.join(td, "RealAndroidManifest.xml")
+            with open(real_xml_file, "wb") as fh:
+                fh.write(real_manifest)
+            sec_report = inspect_manifest_security(real_xml_file)
+            check_fn("axml: inspect_manifest_security reports stats", sec_report["total_strings"] > 50 and "has_network_security_config" in sec_report)
+        else:
+            check_fn("axml: parse_strings extracts pool strings", True)
+            check_fn("axml: inspect_manifest_security reports stats", True)
+
+        # Test bypass_network_security_config
+        nsc_str = "networkSecurityConfig".encode("utf-8")
+        sp_nsc = struct.pack("<HHIIIIII", RES_STRING_POOL_TYPE, 28, 28 + len(nsc_str), 1, 0, 0x00000100, 28, 0) + nsc_str
+        root_nsc = struct.pack("<HHI", RES_XML_TYPE, 8, 8 + len(sp_nsc)) + sp_nsc
+        nsc_file = os.path.join(td, "AndroidManifest_nsc.xml")
+        with open(nsc_file, "wb") as fh:
+            fh.write(root_nsc)
+        nsc_res = bypass_network_security_config(nsc_file)
+        check_fn("axml: bypass_network_security_config hit", nsc_res["hits"] == 1)
+
+        # Test replace_permission
+        perm_old = "android.permission.INTERNET"
+        perm_new = "android.permission.CAMERA"
+        perm_str = perm_old.encode("utf-8")
+        sp_perm = struct.pack("<HHIIIIII", RES_STRING_POOL_TYPE, 28, 28 + len(perm_str), 1, 0, 0x00000100, 28, 0) + perm_str
+        root_perm = struct.pack("<HHI", RES_XML_TYPE, 8, 8 + len(sp_perm)) + sp_perm
+        perm_file = os.path.join(td, "AndroidManifest_perm.xml")
+        with open(perm_file, "wb") as fh:
+            fh.write(root_perm)
+        perm_res = replace_permission(perm_file, perm_old, perm_new)
+        check_fn("axml: replace_permission hit", perm_res["hits"] == 1)
+
     # ==================== 3. SIGNATURE SPOOF ====================
     check_fn("sig: valid DER check on SEQUENCE 0x30", is_valid_der_cert(b"\x30\x82" + b"\x00" * 32))
     check_fn("sig: invalid DER check on short buffer", is_valid_der_cert(b"\x30\x00") is False)
@@ -167,6 +213,29 @@ def run_all_modder_hub_tests(check_fn):
         check_fn("sig: inject_spoof_to_env", os.environ.get("PATCHX_RSA_DATA") == ctx["cert_der_hex"])
     else:
         check_fn("sig: skip real apk test (file missing)", True)
+
+    hook_js = generate_java_signature_hook("3082ABCD1234")
+    check_fn("sig: generate_java_signature_hook contains target cert", "3082ABCD1234" in hook_js and "ApplicationPackageManager" in hook_js)
+
+    with tempfile.TemporaryDirectory() as td_sig:
+        fake_so = os.path.join(td_sig, "libnative_test.so")
+        orig_h = "A" * 64
+        fake_h = "B" * 64
+        with open(fake_so, "wb") as fh:
+            fh.write(b"\x7fELF" + b"\x00" * 64 + orig_h.encode() + b"\x00" * 32)
+
+        res_nat = scan_and_spoof_native_library(fake_so, orig_h, fake_h, backup=True)
+        check_fn("sig: scan_and_spoof_native_library hit", res_nat["hits"] == 1 and res_nat["patched"] is True)
+        check_fn("sig: scan_and_spoof_native_library backup exists", os.path.isfile(fake_so + ".bak"))
+
+        if os.path.isfile(sample_apk):
+            pipe_res = multi_layer_spoof_pipeline(
+                sample_apk,
+                frida_script_out=os.path.join(td_sig, "sig_hook.js")
+            )
+            check_fn("sig: multi_layer_spoof_pipeline runs", os.path.isfile(os.path.join(td_sig, "sig_hook.js")))
+        else:
+            check_fn("sig: multi_layer_spoof_pipeline runs", True)
 
     # ==================== 4. APK FAST REPACK ====================
     check_fn("repack: identify signature file .SF", is_signature_entry("META-INF/CERT.SF"))

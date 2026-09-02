@@ -5,6 +5,8 @@ Hỗ trợ:
 - Phân tích cấu trúc Chunk (RES_XML_TYPE, RES_STRING_POOL_TYPE, RES_XML_RESOURCE_MAP_TYPE, ...).
 - Tự động nhận diện chuỗi String Pool ở cả 2 chuẩn mã hóa UTF-8 và UTF-16LE.
 - Thay thế chuỗi nhị phân in-place an toàn với padding null bytes và tạo backup.
+- Trích xuất danh sách chuỗi và báo cáo bảo mật Manifest (permissions, flags, networkSecurityConfig).
+- Bypass Network Security Config (chống SSL Pinning tầng XML) và can thiệp permissions in-place.
 """
 
 import os
@@ -41,7 +43,6 @@ def inspect_chunks(data, recurse_containers=True):
     Nếu recurse_containers=True, duyệt sâu vào các chunk con bên trong container (RES_XML hoặc RES_TABLE).
     """
     out = []
-    off = 0
 
     def _parse_range(start_off, end_off):
         curr = start_off
@@ -60,7 +61,6 @@ def inspect_chunks(data, recurse_containers=True):
             out.append(item)
 
             if recurse_containers and typ in (RES_XML_TYPE, RES_TABLE_TYPE) and header_size >= 8:
-                # Container chunk bao bọc các sub-chunk con
                 sub_start = curr + header_size
                 sub_end = curr + size
                 _parse_range(sub_start, sub_end)
@@ -98,8 +98,51 @@ def inspect_string_pool(data):
         "style_count": style_count,
         "flags": flags,
         "is_utf8": is_utf8,
+        "strings_start": strings_start,
+        "styles_start": styles_start,
         "encoding": "utf-8" if is_utf8 else "utf-16le",
     }
+
+
+def parse_strings(data):
+    """Trích xuất toàn bộ chuỗi text từ String Pool của AXML/ARSC."""
+    sp = inspect_string_pool(data)
+    if not sp:
+        return []
+
+    off = sp["offset"]
+    str_count = sp["string_count"]
+    strings_start = sp["strings_start"]
+    is_utf8 = sp["is_utf8"]
+
+    if off + 28 + str_count * 4 > len(data):
+        return []
+
+    offsets = [struct.unpack_from("<I", data, off + 28 + i * 4)[0] for i in range(str_count)]
+    pool_data_start = off + strings_start
+    strings = []
+
+    for item_off in offsets:
+        cur = pool_data_start + item_off
+        if cur >= len(data):
+            continue
+        if is_utf8:
+            # UTF-8: 1-2 bytes u16 len + 1-2 bytes u8 len + utf8 bytes + \x00
+            u8_len = data[cur + 1] if cur + 1 < len(data) else 0
+            s_bytes = data[cur + 2 : cur + 2 + u8_len]
+            decoded = s_bytes.decode("utf-8", errors="replace").split("\x00")[0]
+            strings.append(decoded)
+        else:
+            # UTF-16LE: 2 bytes char count + utf-16le bytes + \x00\x00
+            if cur + 2 > len(data):
+                continue
+            char_count = struct.unpack_from("<H", data, cur)[0]
+            byte_len = char_count * 2
+            s_bytes = data[cur + 2 : cur + 2 + byte_len]
+            decoded = s_bytes.decode("utf-16le", errors="replace").split("\x00")[0]
+            strings.append(decoded)
+
+    return strings
 
 
 def inspect_binary(path):
@@ -123,6 +166,30 @@ def inspect_binary(path):
     }
 
 
+def inspect_manifest_security(path):
+    """Phân tích các cờ và thuộc tính bảo mật trong AndroidManifest.xml nhị phân."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError("Không tìm thấy tệp: %s" % path)
+
+    with open(path, "rb") as fh:
+        data = fh.read()
+
+    strings = parse_strings(data)
+    perms = [s for s in strings if "permission." in s]
+    has_nsc = "networkSecurityConfig" in strings
+    has_cleartext = "usesCleartextTraffic" in strings
+    has_debug = "debuggable" in strings
+
+    return {
+        "path": path,
+        "total_strings": len(strings),
+        "has_network_security_config": has_nsc,
+        "has_uses_cleartext_traffic": has_cleartext,
+        "has_debuggable": has_debug,
+        "permissions": perms,
+    }
+
+
 def replace_string_inplace(path, old, new, backup_path=None, encoding="auto"):
     """Thay thế chuỗi nhị phân trong AXML/ARSC in-place.
 
@@ -137,7 +204,6 @@ def replace_string_inplace(path, old, new, backup_path=None, encoding="auto"):
     with open(path, "rb") as fh:
         raw = fh.read()
 
-    # Xác định byte representation cho old và new
     matched_enc = None
     old_b = None
     new_b = None
@@ -147,7 +213,6 @@ def replace_string_inplace(path, old, new, backup_path=None, encoding="auto"):
         new_b = bytes(new) if isinstance(new, (bytes, bytearray)) else str(new).encode("utf-8")
         matched_enc = "raw"
     else:
-        # Dạng chuỗi string -> kiểm tra encoding
         if encoding in ("auto", "utf-8") and old.encode("utf-8") in raw:
             matched_enc = "utf-8"
             old_b = old.encode("utf-8")
@@ -157,7 +222,6 @@ def replace_string_inplace(path, old, new, backup_path=None, encoding="auto"):
             old_b = old.encode("utf-16le")
             new_b = new.encode("utf-16le")
         else:
-            # Fallback mặc định theo encoding được chỉ định
             matched_enc = encoding if encoding != "auto" else "utf-8"
             old_b = old.encode("utf-8")
             new_b = new.encode("utf-8")
@@ -189,3 +253,31 @@ def replace_string_inplace(path, old, new, backup_path=None, encoding="auto"):
         "size": len(raw),
         "backup": backup_path if hits > 0 else None,
     }
+
+
+def bypass_network_security_config(path, backup_path=None):
+    """Vô hiệu hóa Network Security Config (bỏ qua SSL Pinning do XML định nghĩa).
+
+    Đổi tên thuộc tính networkSecurityConfig thành disabledSecConfig để Android PackageParser bỏ qua.
+    """
+    return replace_string_inplace(
+        path,
+        old="networkSecurityConfig",
+        new="disabledSecConfig",
+        backup_path=backup_path,
+        encoding="auto",
+    )
+
+
+def replace_permission(path, old_permission, new_permission, backup_path=None):
+    """Thay thế một permission này bằng permission khác in-place trong AXML.
+
+    Ví dụ: đổi android.permission.ACCESS_ADSERVICES_ATTRIBUTION thành android.permission.RECORD_AUDIO
+    """
+    return replace_string_inplace(
+        path,
+        old=old_permission,
+        new=new_permission,
+        backup_path=backup_path,
+        encoding="auto",
+    )

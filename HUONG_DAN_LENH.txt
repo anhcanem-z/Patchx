@@ -289,6 +289,12 @@ apk-repack-fast
 axml-patch
    Inspect hoặc thay chuỗi nhị phân AXML/ARSC có cùng/nhỏ hơn độ dài; luôn có backup:
        python3 patchx axml-patch AndroidManifest.xml OLD NEW --dry-run
+   Báo cáo bảo mật Manifest (networkSecurityConfig, cleartext, debuggable, permissions):
+       python3 patchx axml-patch AndroidManifest.xml --inspect-security
+   Vô hiệu hóa Network Security Config (bỏ qua SSL Pinning tầng XML):
+       python3 patchx axml-patch AndroidManifest.xml --bypass-nsc
+   Thay đổi permission in-place:
+       python3 patchx axml-patch AndroidManifest.xml --replace-perm OLD_PERM=NEW_PERM
 
 signature-cert
    Trích DER cert v1 gốc, SHA-256 và context PATCHX_RSA_DATA; không ký APK:
@@ -305,3 +311,8 @@ fast-patch
            --dex-str "https://api.old.com"="https://api.new.com" \
            --dex-hex 12000f00=12100f00 \
            --axml "com.old.pkg"="com.new.pkg"
+
+apk-patch --fast (Toolkit Pipeline)
+   Tích hợp Fast-Path vào orchestrator của toolkit, tự động ký số debug:
+       python3 patchx_toolkit.py apk-patch app.apk --fast \
+           --dex-str "old_val=new_val" --axml "old_pkg=new_pkg"

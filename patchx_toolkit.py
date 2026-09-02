@@ -1514,9 +1514,97 @@ def cmd_apk_patch(args):
     if not _ensure_tools(["apktool", "java", "aapt2", "zipalign",
                           "apksigner"], auto):
         return 1
-    if not args.patch:
+    if not args.patch and not getattr(args, "fast", False):
         _log("Cần ít nhất một patch.")
         return 1
+
+    # Chế độ Fast-Path (sửa DEX/AXML in-place siêu tốc không qua apktool d/b)
+    if getattr(args, "fast", False):
+        from patchx_core.apk_fast_repack import fast_patch_and_repack
+        apk_target = None
+        if getattr(args, "tree", None) and os.path.isfile(args.tree):
+            apk_target = args.tree
+        elif getattr(args, "patch", None):
+            for p in args.patch:
+                if p.endswith(".apk") and os.path.isfile(p):
+                    apk_target = p
+                    break
+        if not apk_target and os.path.isdir(DEFAULT_APKS):
+            cands = [os.path.join(DEFAULT_APKS, f) for f in os.listdir(DEFAULT_APKS) if f.endswith(".apk")]
+            if cands:
+                apk_target = sorted(cands, key=os.path.getsize)[0]
+        if not apk_target:
+            _log("Fast-Path yêu cầu một tệp .apk đầu vào (chỉ định trong tham số tree hoặc đặt trong Apks/).")
+            return 1
+
+        os.makedirs(APKS_PATCH_DIR, exist_ok=True)
+        base_name = os.path.splitext(os.path.basename(apk_target))[0]
+        out_name = "%s_fastpatched_%s.apk" % (base_name, time.strftime("%Y%m%d-%H%M%S"))
+        final_apk = os.path.join(APKS_PATCH_DIR, out_name)
+
+        dex_reps = []
+        for item in getattr(args, "dex_str", []) or []:
+            if "=" in item:
+                o, n = item.split("=", 1)
+                dex_reps.append((o, n, False))
+        for item in getattr(args, "dex_hex", []) or []:
+            if "=" in item:
+                o, n = item.split("=", 1)
+                dex_reps.append((o, n, True))
+        axml_reps = []
+        for item in getattr(args, "axml", []) or []:
+            if "=" in item:
+                o, n = item.split("=", 1)
+                axml_reps.append((o, n))
+
+        _log("Khởi chạy Fast-Path: %s -> %s" % (apk_target, final_apk))
+        t0 = time.monotonic()
+        res = fast_patch_and_repack(
+            apk_target,
+            dex_replacements=dex_reps if dex_reps else None,
+            axml_replacements=axml_reps if axml_reps else None,
+            output_apk=final_apk,
+            strip_signatures=True,
+        )
+        dt = time.monotonic() - t0
+        if not res.get("success"):
+            _log("Fast-Path thất bại: %s" % res.get("message"))
+            return 1
+
+        _log("Fast-Path thành công trong %.2fs (DEX: %d hits, AXML: %d hits, Stripped: %d)"
+             % (dt, res["dex_hits"], res["axml_hits"], res["stripped_signatures"]))
+
+        # Ký số APK
+        signed = False
+        if not args.no_sign:
+            ks = args.keystore or _find_keystore() or _ensure_debug_keystore()
+            if ks and shutil.which("apksigner"):
+                signed_apk = final_apk[:-4] + "_signed.apk"
+                sp = subprocess.run(
+                    ["apksigner", "sign", "--ks", ks, "--ks-pass", "pass:" + args.ks_pass,
+                     "--key-pass", "pass:" + args.ks_pass, "--out", signed_apk, final_apk],
+                    text=True, capture_output=True
+                )
+                if sp.returncode == 0:
+                    shutil.move(signed_apk, final_apk)
+                    signed = True
+                    _log("Đã ký số debug APK: %s" % final_apk)
+
+        size = os.path.getsize(final_apk)
+        report = {
+            "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "mode": "fast-path",
+            "apk_input": apk_target,
+            "output": out_name,
+            "size_bytes": size,
+            "signed": signed,
+            "seconds": round(dt, 2),
+            "dex_hits": res["dex_hits"],
+            "axml_hits": res["axml_hits"],
+        }
+        _write_report(report)
+        return 0
+
     tree = _resolve_apk_tree(args)
     if not tree:
         return 1
@@ -1833,6 +1921,16 @@ def cmd_apk_build(args):
         shutil.copyfile(aligned, os.path.join(out, name))
     final_path = os.path.join(out, name)
     report["size_bytes"] = os.path.getsize(final_path)
+
+    # Tự động dọn dẹp các tệp trung gian (unsigned, aligned) để tiết kiệm bộ nhớ trên Termux
+    if os.path.isfile(final_path) and not getattr(args, "keep_intermediates", False):
+        for temp_f in (unsigned, aligned):
+            if temp_f != final_path and os.path.isfile(temp_f):
+                try:
+                    os.remove(temp_f)
+                except OSError:
+                    pass
+
     _log("Đã lưu APK (%s, %.2f MB): %s"
          % ("đã ký" if report.get("signed") else "chưa ký",
             report["size_bytes"] / 1048576.0, final_path))
@@ -3223,10 +3321,18 @@ def main(argv=None):
 
     p = sub.add_parser("apk-patch", help="Áp patch lên APK, build, ký và lưu "
                                          "APK đã patch vào outputs/apk/apk-patch/")
-    p.add_argument("patch", nargs="+", help="Các patch cần áp")
+    p.add_argument("patch", nargs="*", help="Các patch cần áp")
     p.add_argument("tree", nargs="?", default=None,
                    help="Cây APK đã giải mã hoặc tệp .apk "
                         "(mặc định: tự chọn trong Apks/)")
+    p.add_argument("--fast", action="store_true",
+                   help="Chế độ Fast-Path: patch trực tiếp DEX/AXML in-place không qua apktool build")
+    p.add_argument("--dex-str", action="append", default=[], metavar="OLD=NEW",
+                   help="Thay chuỗi UTF-8 trong classes*.dex khi chạy --fast")
+    p.add_argument("--dex-hex", action="append", default=[], metavar="TARGET=REPL",
+                   help="Thay opcode/bytecode hex trong classes*.dex khi chạy --fast")
+    p.add_argument("--axml", action="append", default=[], metavar="OLD=NEW",
+                   help="Thay chuỗi trong AndroidManifest.xml khi chạy --fast")
     p.add_argument("--no-auto-install", action="store_true",
                    help="Không tự cài công cụ thiếu")
     p.add_argument("--no-sign", action="store_true",
@@ -3285,6 +3391,8 @@ def main(argv=None):
                    help="Đường dẫn tới aapt2 thật")
     p.add_argument("--changed-only", action="store_true",
                    help="Xác thực chỉ tệp đổi mới (nhanh hơn nữa)")
+    p.add_argument("--keep-intermediates", action="store_true",
+                   help="Giữ lại tệp .unsigned.apk và .aligned.apk sau khi build")
     p.set_defaults(func=cmd_apk_build)
 
     p = sub.add_parser("apk-full", help="Dây chuyền end-to-end: plan → apply → "

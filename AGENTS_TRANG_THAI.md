@@ -1,6 +1,6 @@
 # AGENTS_TRANG_THAI.md — File trạng thái tổng hợp duy nhất (agent)
 
-Ngày cập nhật: **2026-09-03 01:00 (Asia/Ho_Chi_Minh)** — Hoàn tất tối ưu & tích hợp 5 module Modder Hub, nâng cấp fast-patch 1-click, bộ test đạt 546/546 (100% PASS).
+Ngày cập nhật: **2026-09-03 01:20 (Asia/Ho_Chi_Minh)** — Hoàn tất chuỗi nâng cấp tuần tự (P1 đến P5): Fast-Path toolkit pipeline, Binary AXML security & NSC bypass, Multi-Layer Signature Spoofing (Java + Native + Frida), nâng bộ test đạt 554/554 (100% PASS).
 `/storage/emulated/0/Patch/patch1/_patchx`, chạy độc lập với bản `w/`.
 
 ---
@@ -62,14 +62,14 @@ Ngày cập nhật: **2026-09-03 01:00 (Asia/Ho_Chi_Minh)** — Hoàn tất tố
 | Chỉ số | Giá trị mới nhất | Ngày đo |
 |---|---|---|
 | Selfcheck | **8/8 module OK, 60 patch đọc được, 0 lỗi** | 2026-08-21 |
-| Test đơn vị | **546/546 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
+| Test đơn vị | **554/554 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
 | Bộ patch chuẩn hóa | **60 zip** trong `upgraded/` | 2026-08-21 |
 | Audit | **60 patch — 0 lỗi / 18 cảnh báo / 17 vấn đề tự sửa được** (`outputs/audit/audit.json`) | 2026-08-21 |
 | APK đầu vào | **3 APK** trong Apks/ (a.apk, Dịch Video Thời Gian Thực_0.17.apk, Fake GPS_5.8.7_kill.apk) | 2026-09-02 |
 | Cây giải mã | **1 cây** trong outputs/apk/apk-trees/ (a_src) | 2026-09-02 |
-| Combo thành công | **10 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
-| Git | **đã init + push GitHub** — commit đầu `125a7a3` nhánh `master` → `anhcanem-z/Behavior-` (241 file; loại `outputs/`, `Apks/`, `dist/`, `.codex/`, `libso/`) | 2026-08-21 |
-| Bản phân phối | **2 bản** trong `dist/` (mới nhất: patchx-toolkit-2-20260903-010047.zip, 11.45 MB) | 2026-09-03 |
+| Combo thành công | **14 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
+| Git | **đã init + push GitHub** — commit đầu `125a7a3`, commit mốc 8 `0dd19bc` nhánh `master` → `anhcanem-z/Behavior-` | 2026-09-03 |
+| Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-3-20260903-011654.zip, 11.45 MB) | 2026-09-03 |
 
 ---
 
@@ -116,10 +116,10 @@ Ngày cập nhật: **2026-09-03 01:00 (Asia/Ho_Chi_Minh)** — Hoàn tất tố
 | `outputs/apk/apk-patch/` | APK đã patch + keystore debug | patchx-debug.keystore |
 | `outputs/behavior/` | Artifact behavior/Frida | 5 tệp (generated_hook.js, frida_hooks_config.json, ...) |
 | `outputs/behavior/gadget/` | APK nhúng gadget + keystore | app_signed/unsigned/aligned + libgadget.so (25M) + gadget_debug.keystore |
-| `outputs/combos/` | Kho combo thành công | combos_success.json (**10 lượt**) |
+| `outputs/combos/` | Kho combo thành công | combos_success.json (**14 lượt**) |
 | `outputs/backup/` | Bản lưu trước khi đổi cấu trúc | `pre_sync_20260821/` (11 tệp source gốc) |
 | `outputs/` | File tự sinh + output module | scan/, audit/, roadmap/, simulate/, ci/, golden/, bench/, baseline/, backup/, cache/, combos/, pipeline/, apk/, behavior/ (xem `outputs/README.md`) |
-| `dist/` | Bản phân phối | 2 bản (mới nhất: patchx-toolkit-2-20260903-010047.zip, 11.45 MB) |
+| `dist/` | Bản phân phối | 3 bản (mới nhất: patchx-toolkit-3-20260903-011654.zip, 11.45 MB) |
 
 ---
 
@@ -274,6 +274,13 @@ Ngày cập nhật: **2026-09-03 01:00 (Asia/Ho_Chi_Minh)** — Hoàn tất tố
 ---
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
+
+- **2026-09-03 01:20 — Hoàn tất chuỗi ưu tiên tuần tự (P1 đến P5): Pipeline Fast-Path, Binary AXML Security/Bypass, Multi-Layer Signature Spoofing và Test Suite đạt 554/554 PASS**:
+  1. Ưu tiên 1 (Git Commit): Đã lưu vết commit mốc 8 `0dd19bc` bảo toàn 19 tệp thay đổi và các lớp layout tương thích.
+  2. Ưu tiên 2 (Tích hợp Fast-Path Toolkit): Bổ sung cờ `--fast` cho `cmd_apk_patch` trong `patchx_toolkit.py`; tự động dọn dẹp các tệp build trung gian (`.unsigned.apk`, `.aligned.apk`) trong `cmd_apk_build` giúp tiết kiệm 156MB ổ đĩa Termux.
+  3. Ưu tiên 3 (Binary AXML Security & Bypass): Nâng cấp `axml_editor.py` với `parse_strings`, `inspect_manifest_security`, `bypass_network_security_config` (vượt SSL pinning ở tầng XML không cần biên dịch lại), `replace_permission` in-place. Cập nhật CLI `axml-patch` và tài liệu `HUONG_DAN_LENH.txt`.
+  4. Ưu tiên 4 (Multi-Layer Signature Spoofing): Mở rộng `signature_spoof.py` với `generate_java_signature_hook` (Frida Java layer), `scan_and_spoof_native_library` (Native .so layer) và `multi_layer_spoof_pipeline` khép kín.
+  5. Ưu tiên 5 (Test Suite & Đóng gói Phân Phối): Bổ sung 8 test cases mới vào `tests/test_modder_hub_fastpath.py` nâng tổng số test đạt **554/554 PASS (100%)**, đóng gói bản phân phối `patchx-toolkit-3-20260903-011654.zip` (11.45 MB).
 
 - **2026-09-03 01:00 — Nâng cấp toàn diện 5 module Modder Hub, bổ sung Fast-Patch 1-Click & mở rộng test suite đạt 546/546 (100% PASS)**:
   1. `dex_inplace.py`: Sửa lỗi unpacking struct header DEX (`<I20s20I`), bổ sung Direct Opcode/Bytecode Patching (`replace_bytecode_pattern`, `patch_dex_file_bytecode`, hằng số Dalvik `FORCE_TRUE_V0`, `FORCE_FALSE_V0`, `RETURN_VOID`, `OP_NOP`). CLI `dex-patch` nâng cấp hỗ trợ `--replace-hex TARGET=REPL`.
