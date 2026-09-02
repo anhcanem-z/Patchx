@@ -4640,6 +4640,16 @@ def test_unified_pipeline():
               rep_fast["verdict"] == "SUCCESS"
               and "patched_apk" in rep_fast["outputs"])
 
+        rep_combo = run_pipeline(dummy_apk, mode="combo", output_dir=out_pipe)
+        check("pipeline: mode combo sinh kết quả và báo cáo",
+              rep_combo["verdict"] in ("SUCCESS", "WARN")
+              and any(s["name"] == "smart_combo_learning" for s in rep_combo["stages"]))
+
+        rep_native = run_pipeline(dummy_apk, mode="native", output_dir=out_pipe)
+        check("pipeline: mode native sinh kịch bản spoof",
+              rep_native["verdict"] in ("SUCCESS", "WARN")
+              and any(s["name"] == "native_signature_spoof" for s in rep_native["stages"]))
+
         rep_auto = run_pipeline(dummy_apk, mode="auto", output_dir=out_pipe)
         check("pipeline: mode auto chạy hybrid và xuất báo cáo md/json",
               rep_auto["verdict"] == "SUCCESS"

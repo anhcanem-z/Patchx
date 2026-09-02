@@ -1,6 +1,6 @@
 # AGENTS_TRANG_THAI.md — File trạng thái tổng hợp duy nhất (agent)
 
-Ngày cập nhật: **2026-09-03 03:28 (Asia/Ho_Chi_Minh)** — Nâng cấp toàn diện Menu CLI và Doctor CLI: tích hợp bảng điều khiển tương tác trực tiếp `patchx menu-cli` hỗ trợ chọn nhanh APK và chạy 1-click, xây dựng engine chẩn đoán `patchx doctor` (`doctor.py`) đồng bộ với `patchx_toolkit.py doctor`, nâng bộ test lên 592/592 PASS (100%), 69 lệnh CLI đồng bộ.
+Ngày cập nhật: **2026-09-03 03:36 (Asia/Ho_Chi_Minh)** — Tối ưu hóa Stage 5 (Active Learning Smart Combo) trong Unified Pipeline Engine, mở rộng kiểm thử luồng combo & native đạt 594/594 PASS (100%), 69 lệnh CLI đồng bộ.
 `/storage/emulated/0/Patch/patch1/_patchx`, chạy độc lập với bản `w/`.
 
 ---
@@ -73,14 +73,14 @@ Ngày cập nhật: **2026-09-03 03:28 (Asia/Ho_Chi_Minh)** — Nâng cấp toà
 | Chỉ số | Giá trị mới nhất | Ngày đo |
 |---|---|---|
 | Selfcheck | **8/8 module OK, 60 patch đọc được, 0 lỗi** | 2026-08-21 |
-| Test đơn vị | **592/592 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
+| Test đơn vị | **594/594 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
 | Lệnh CLI | **69 lệnh** (bổ sung `pipeline`, `intake`, `capabilities`, `menu-cli`, `doctor`) | 2026-09-03 |
 | Bộ patch chuẩn hóa | **60 zip** trong `upgraded/` | 2026-08-21 |
 | Audit | **60 patch — 0 lỗi / 18 cảnh báo / 17 vấn đề tự sửa được** (`outputs/audit/audit.json`) | 2026-08-21 |
 | APK đầu vào | **3 APK** trong Apks/ (a.apk, Dịch Video Thời Gian Thực_0.17.apk, Fake GPS_5.8.7_kill.apk) | 2026-09-02 |
 | Cây giải mã | **1 cây** trong outputs/apk/apk-trees/ (a_src) | 2026-09-02 |
-| Combo thành công | **30 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
-| Git | **đã init + push GitHub** — HEAD `be36be4`, 19 commits trên `master` → đồng bộ cả 2 remote `Behavior-` & `Patchx` | 2026-09-03 |
+| Combo thành công | **32 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
+| Git | **đã init + push GitHub** — HEAD `e14ea13`, 21 commits trên `master` → đồng bộ cả 2 remote `Behavior-` & `Patchx` | 2026-09-03 |
 | Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-5-20260903-021149.zip, 11.46 MB) | 2026-09-03 |
 
 ---
@@ -100,7 +100,7 @@ Ngày cập nhật: **2026-09-03 03:28 (Asia/Ho_Chi_Minh)** — Nâng cấp toà
   apk-test/apk-fix-res/apk-patch/apk-debug/apk-build/apk-full/apk-runtime/
   bench-scan/plan-ui/webui/install-deps.
 - `patchx_core/` — **39 module** (thêm `pipeline_unified.py`, `intake.py`, `doctor.py`) + gói con `behavior/` (đã tinh gọn 32 module trùng lặp thành clean compatibility shims, giữ nguyên các module chuyên biệt detector, target, cfg, ontology, patcher, pipeline, gadget_pipeline, smart_scanner, smart_ontology, behavior_learner).
-- `tests/` — `run_tests.py` (592 tests) + `fixtures/`.
+- `tests/` — `run_tests.py` (594 tests) + `fixtures/`.
 - `tools/` — `status_report.py` (báo cáo tự động khi online),
   `sync_modules.py` (kiểm tra đồng bộ module khi thêm tính năng/nâng cấp).
 - `OPERATIONS/` — lớp điều hướng hiển thị; đường dẫn thật khai báo trong
@@ -123,7 +123,7 @@ Ngày cập nhật: **2026-09-03 03:28 (Asia/Ho_Chi_Minh)** — Nâng cấp toà
 | `outputs/apk/apk-patch/` | APK đã patch + keystore debug | patchx-debug.keystore |
 | `outputs/behavior/` | Artifact behavior/Frida | 5 tệp (generated_hook.js, frida_hooks_config.json, ...) |
 | `outputs/behavior/gadget/` | APK nhúng gadget + keystore | app_signed/unsigned/aligned + libgadget.so (25M) + gadget_debug.keystore |
-| `outputs/combos/` | Kho combo thành công | combos_success.json (**30 lượt**) |
+| `outputs/combos/` | Kho combo thành công | combos_success.json (**32 lượt**) |
 | `outputs/intake/` | Báo cáo tiếp nhận artifact & tool capabilities | 4 tệp (tool_capabilities.json/md, intake_a.json/md) |
 | `outputs/pipeline/` | Báo cáo Unified Pipeline và artifacts | pipeline_report.json, pipeline_report.md |
 | `outputs/backup/` | Bản lưu trước khi đổi cấu trúc | `pre_sync_20260821/` (11 tệp source gốc) |
@@ -282,6 +282,11 @@ Ngày cập nhật: **2026-09-03 03:28 (Asia/Ho_Chi_Minh)** — Nâng cấp toà
 ---
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
+
+- **2026-09-03 03:36 — Tối ưu Stage 5 (Active Learning Smart Combo) trong Unified Pipeline Engine & nâng test suite lên 594/594 PASS (100%)**:
+  1. Tối ưu Stage 5 Smart Combo: Hoàn thiện phương thức `_run_combo_stage` trong [`patchx_core/pipeline_unified.py`](file:///data/data/com.termux/files/home/_patchx/patchx_core/pipeline_unified.py) gọi chuẩn hóa `generate_smart_combo(tree, collection, intent=intent, max_patches=...)`, tách biệt merged patch object và lưu chuỗi patch text an toàn ra `smart_combo_<intent>.txt`, bổ sung `default=str` cho bộ tuần tự hóa JSON báo cáo.
+  2. Bổ sung kiểm thử đa luồng: Mở rộng `test_unified_pipeline` trong [`tests/run_tests.py`](file:///data/data/com.termux/files/home/_patchx/tests/run_tests.py) với các ca kiểm thử cho mode `combo` và mode `native`, nâng tổng số test suite lên **594/594 PASS (100%)**.
+  3. Đồng bộ trạng thái: `tools/sync_modules.py` và `tools/status_report.py` duy trì 69 lệnh CLI, 48 module behavior, 0 cảnh báo.
 
 - **2026-09-03 03:28 — Nâng cấp toàn diện Menu CLI & Doctor CLI, đồng bộ 69 lệnh CLI, đạt 592/592 test PASS (100%)**:
   1. Nâng cấp Giao diện Menu CLI: Phát triển bảng điều khiển tương tác trực tiếp (`patchx menu-cli` và `patchx menu`) trong [`patchx_core/feature_menu.py`](file:///data/data/com.termux/files/home/_patchx/patchx_core/feature_menu.py), tự động liệt kê và chọn nhanh APK có sẵn trong `Apks/`, điều phối 1-click Unified Pipeline, Fast-Path, Native Lab, Behavior Frida và Rebuild.

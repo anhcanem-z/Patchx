@@ -276,20 +276,34 @@ class UnifiedPipeline:
         """Stage 5: Active Learning Smart Combo."""
         from patchx_core.learn import generate_smart_combo, save_smart_combo
         intent = kwargs.get("intent", "bypass")
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        collection = kwargs.get("collection") or os.path.join(root, "upgraded")
+        tree = self.artifact
+        if os.path.isfile(self.artifact):
+            apk_name = os.path.splitext(os.path.basename(self.artifact))[0]
+            candidate_tree = os.path.join(
+                os.path.dirname(self.output_dir), "apk", "apk-trees", f"{apk_name}_src"
+            )
+            if os.path.isdir(candidate_tree):
+                tree = candidate_tree
+
         combo_res = generate_smart_combo(
-            self.artifact,
+            tree,
+            collection,
             intent=intent,
             max_patches=kwargs.get("max_patches", 4),
         )
-        out_combo_file = os.path.join(self.output_dir, f"smart_combo_{intent}.zip")
-        if combo_res.get("success"):
-            save_smart_combo(combo_res, out_combo_file)
-            report["outputs"]["smart_combo_zip"] = out_combo_file
+        out_combo_file = os.path.join(self.output_dir, f"smart_combo_{intent}.txt")
+        merged = combo_res.get("merged_patch")
+        if merged:
+            save_smart_combo(merged, out_combo_file)
+            report["outputs"]["smart_combo_file"] = out_combo_file
 
+        details = {k: v for k, v in combo_res.items() if k != "merged_patch"}
         report["stages"].append({
             "name": "smart_combo_learning",
-            "status": "PASS" if combo_res.get("success") else "WARN",
-            "details": combo_res,
+            "status": "PASS" if combo_res.get("patch_count", 0) > 0 else "WARN",
+            "details": details,
         })
 
     def _run_auto_hybrid_stage(self, report: Dict[str, Any], **kwargs) -> None:
@@ -318,7 +332,7 @@ class UnifiedPipeline:
         """Ghi báo cáo JSON và Markdown chuẩn hóa."""
         jpath = os.path.join(self.output_dir, "pipeline_report.json")
         with open(jpath, "w", encoding="utf-8") as fh:
-            json.dump(report, fh, ensure_ascii=False, indent=2)
+            json.dump(report, fh, ensure_ascii=False, indent=2, default=str)
         report["outputs"]["report_json"] = jpath
 
         mpath = os.path.join(self.output_dir, "pipeline_report.md")
