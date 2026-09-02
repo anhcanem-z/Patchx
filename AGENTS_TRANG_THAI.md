@@ -285,6 +285,11 @@ Ngày cập nhật: **2026-09-03 02:45 (Asia/Ho_Chi_Minh)** — Thiết lập kh
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
 
+- **2026-09-03 02:51 — Bổ sung kho tri thức KINH_NGHIEM_HOC_HOI.md (Mục 3.2 — Kỹ thuật ép Server trả về quyền thật)**:
+  1. Phân tích sâu 5 cơ chế can thiệp luồng outbound request khiến máy chủ backend tự sinh token và trả về payload quyền hạn thật: Device ID Rotation, GeoIP/AB Header Spoofing, API Mass Assignment / Parameter Tampering, Receipt Replay Sandbox Token, Fail-Open Grace Mode.
+  2. Bổ sung chi tiết vào `KINH_NGHIEM_HOC_HOI.md` (nâng tổng số lên 11 nhóm kỹ thuật chọn lọc).
+  3. Cập nhật bản đồ kế thừa sang các module `patchx_core/macro_registry.py` và `behavior/`.
+
 - **2026-09-03 02:41 — Báo cáo đánh giá mức hiện đại hóa toolkit**: tạo `outputs/tooling_modernization_review_20260903.md` dựa trên khảo sát source, 575/575 test PASS và tài liệu Android/Apktool/Frida hiện hành. Xác nhận 24 cặp module trùng hash giữa `patchx_core/` và `patchx_core/behavior/`; `patchx_toolkit.py` dùng root module nên đề xuất canonical core là `patchx_core/`, giữ shim/plugin cho behavior chuyên biệt. Khuyến nghị thêm intake cho APK/APKS/XAPK/AAB, các gate split/ABI/certificate/SDK/Play Integrity, và hợp nhất module theo pha; **chưa sửa hay xóa module**. `combos_success.json` thực tế 18 lượt (4.646 byte, mtime 02:19:04); Git HEAD `c64d7f6`, 14 commits. Công cụ đã xác nhận: apktool 3.0.3-dirty, aapt2 2.20, adb 1.0.41, Java 21.0.12, JADX 1.5.5.
 
 - **2026-09-03 02:45 — Thiết lập kho tri thức KINH_NGHIEM_HOC_HOI.md & Quy tắc học hỏi/áp dụng Internet**:
