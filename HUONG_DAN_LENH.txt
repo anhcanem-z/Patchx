@@ -334,3 +334,12 @@ smart-combo
        python3 patchx smart-combo outputs/apk/apk-trees/a_src --intent bypass-license -o combos/
        python3 patchx smart-combo outputs/apk/apk-trees/a_src --max-patches 3 --apply
 
+intake
+   Tiếp nhận artifact Android (APK, APKS, XAPK, AAB) và tạo evidence report chỉ đọc:
+       python3 patchx intake app.apk -o outputs/intake
+       python3 patchx intake app.apks --no-tool-probe
+
+capabilities
+   Ghi snapshot kiểm tra công cụ hiện có trong môi trường (Java, JADX, aapt2, apksigner...):
+       python3 patchx capabilities -o outputs/intake
+

@@ -440,6 +440,17 @@ def cmd_doctor(args):
              % ", ".join(hints))
     else:
         _log("Công cụ ngoài: đủ (%s)" % ", ".join(sorted(TOOL_PACKAGES)))
+    # Không dùng `tool version` chung cho mọi binary: Java/JADX/apksigner có
+    # cú pháp khác nhau. Capability probe chuẩn hóa lệnh và chỉ đọc môi trường.
+    try:
+        from patchx_core.intake import collect_tool_capabilities
+        capabilities = collect_tool_capabilities()
+        _log("Phiên bản công cụ (capability probe):")
+        for row in capabilities["tools"]:
+            state = row.get("version") if row.get("available") else "THIẾU"
+            _log("  - %s: %s" % (row["name"], state))
+    except Exception as exc:
+        _log("Không lấy được capability probe: %s" % exc)
     return 0 if ok else 1
 
 

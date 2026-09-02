@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import time
+import zipfile
 
 from . import __version__
 from .parser import parse_patch_file
@@ -812,6 +813,47 @@ def cmd_signature_cert(args):
         return 0
     except (OSError,ValueError) as exc:
         print("[signature-cert] LỖI: %s" % exc); return 2
+
+
+def cmd_intake(args):
+    """Tiếp nhận artifact Android trước khi chạy pipeline có thay đổi."""
+    from .intake import run_intake
+    out_dir = args.output_dir or os.path.join(BASE_DIR, "outputs", "intake")
+    try:
+        report = run_intake(args.artifact, out_dir,
+                            include_tools=not args.no_tool_probe)
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        print("[intake] LỖI: %s" % exc)
+        return 2
+    artifact = report["artifact"]
+    summary = report["summary"]
+    print("[intake] %s (%s)" % (artifact["name"], artifact["kind"]))
+    print("[intake] %s | %d cảnh báo | %d DEX | ABI: %s" % (
+        summary["verdict"], summary.get("warnings", 0),
+        report.get("structure", {}).get("dex_count", 0),
+        ", ".join(report.get("structure", {}).get("abis", [])) or "—",
+    ))
+    print("Đã ghi:", report["outputs"]["json"])
+    print("Đã ghi:", report["outputs"]["markdown"])
+    if report["outputs"].get("capabilities"):
+        print("Đã ghi:", report["outputs"]["capabilities"]["json"])
+    return 0
+
+
+def cmd_capabilities(args):
+    """Ghi snapshot công cụ hiện có mà không cài thêm dependency."""
+    from .intake import collect_tool_capabilities, write_capabilities
+    out_dir = args.output_dir or os.path.join(BASE_DIR, "outputs", "intake")
+    capabilities = collect_tool_capabilities()
+    outputs = write_capabilities(capabilities, out_dir)
+    summary = capabilities["summary"]
+    print("[capabilities] Có %d/%d công cụ" % (
+        summary["available"], summary["total"]))
+    if summary["missing"]:
+        print("[capabilities] Thiếu: %s" % ", ".join(summary["missing"]))
+    print("Đã ghi:", outputs["json"])
+    print("Đã ghi:", outputs["markdown"])
+    return 0
 
 def cmd_macro_list(args):
     from .macro_registry import list_macros, validate_macro
@@ -2723,6 +2765,16 @@ def main(argv=None):
     p.add_argument("apk", help="APK gốc")
     p.add_argument("-o", "--output", default=None, help="JSON context đầu ra")
     p.set_defaults(func=cmd_signature_cert)
+
+    p = sub.add_parser("intake", help="Tiếp nhận APK/APKS/XAPK/AAB và tạo evidence report chỉ đọc")
+    p.add_argument("artifact", help="Tệp APK, APKS, XAPK hoặc AAB")
+    p.add_argument("-o", "--output-dir", default=None, help="Thư mục output (mặc định: outputs/intake)")
+    p.add_argument("--no-tool-probe", action="store_true", help="Không probe version công cụ ngoài")
+    p.set_defaults(func=cmd_intake)
+
+    p = sub.add_parser("capabilities", help="Ghi tool_capabilities.json cho môi trường hiện tại")
+    p.add_argument("-o", "--output-dir", default=None, help="Thư mục output (mặc định: outputs/intake)")
+    p.set_defaults(func=cmd_capabilities)
 
     p = sub.add_parser("macro-list", help="Liệt kê Smali macro và yêu cầu register")
     p.add_argument("--registers", type=int, default=2, help="Số register dự kiến")

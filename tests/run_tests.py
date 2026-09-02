@@ -4545,6 +4545,68 @@ def test_smart_patch():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def test_intake_capabilities():
+    from patchx_core.intake import (collect_tool_capabilities, inspect_artifact,
+                                    write_capabilities, run_intake)
+    d = tempfile.mkdtemp(prefix="patchx_intake_", dir=TMP if os.path.isdir(TMP) else None)
+    try:
+        caps = collect_tool_capabilities()
+        check("intake: collect_tool_capabilities schema hợp lệ",
+              caps.get("schema") == "patchx.tool-capabilities/v1" and "tools" in caps)
+        outputs = write_capabilities(caps, d)
+        check("intake: write_capabilities tạo file json & md",
+              os.path.isfile(outputs["json"]) and os.path.isfile(outputs["markdown"]))
+
+        dummy_apk = os.path.join(d, "test.apk")
+        with zipfile.ZipFile(dummy_apk, "w") as zf:
+            zf.writestr("AndroidManifest.xml", b"\x03\x00\x08\x00" + b"\x00" * 32)
+            zf.writestr("classes.dex", b"dex\n035\x00" + b"\x00" * 100)
+            zf.writestr("classes2.dex", b"dex\n035\x00" + b"\x00" * 100)
+            zf.writestr("lib/arm64-v8a/libdemo.so", b"\x7fELF" + b"\x00" * 50)
+            zf.writestr("res/layout/main.xml", b"<xml/>")
+
+        out_intake = os.path.join(d, "out_intake")
+        report = run_intake(dummy_apk, out_intake, include_tools=False)
+        check("intake: run_intake phân tích đúng dummy APK",
+              report.get("artifact", {}).get("kind") == "apk"
+              and report.get("structure", {}).get("dex_count") == 2
+              and "arm64-v8a" in report.get("structure", {}).get("abis", []))
+        check("intake: run_intake ghi report json & md",
+              os.path.isfile(report["outputs"]["json"]) and os.path.isfile(report["outputs"]["markdown"]))
+
+        split_set = os.path.join(d, "test.apks")
+        with zipfile.ZipFile(split_set, "w") as zf:
+            zf.writestr("base.apk", b"PK\x03\x04")
+            zf.writestr("split_config.arm64_v8a.apk", b"PK\x03\x04")
+            zf.writestr("feature_chat.apk", b"PK\x03\x04")
+        split_report = inspect_artifact(split_set, include_tools=False)
+        split_codes = {item["code"] for item in split_report["risks"]}
+        check("intake: APKS nhận diện base/config/feature",
+              split_report["structure"]["nested_apk_count"] == 3
+              and "SPLIT_CONTAINER" in split_codes
+              and any(row["role"] == "base"
+                      for row in split_report["structure"]["nested_apks"]))
+
+        bundle = os.path.join(d, "test.aab")
+        with zipfile.ZipFile(bundle, "w") as zf:
+            zf.writestr("base/manifest/AndroidManifest.xml", b"manifest")
+            zf.writestr("base/dex/classes.dex", b"dex\n035\x00")
+            zf.writestr("feature_chat/dex/classes.dex", b"dex\n035\x00")
+        bundle_report = inspect_artifact(bundle, include_tools=False)
+        bundle_codes = {item["code"] for item in bundle_report["risks"]}
+        check("intake: AAB nhận diện module và gate bundletool",
+              bundle_report["structure"]["modules"] == ["base", "feature_chat"]
+              and "AAB_PUBLISHING_FORMAT" in bundle_codes)
+
+        from patchx_core.cli import main as cli_main
+        cli_out = os.path.join(d, "cli_out")
+        cli_rc = cli_main(["intake", dummy_apk, "--no-tool-probe", "-o", cli_out])
+        check("intake: CLI đăng ký và ghi report", cli_rc == 0
+              and os.path.isfile(os.path.join(cli_out, "intake_test.json")))
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def main():
     test_baseline()
     test_combo()
@@ -4635,6 +4697,7 @@ def main():
     test_behavior_aux_modules()
     test_fixtures_mau()
     test_session_selector()
+    test_intake_capabilities()
     from tests.test_modder_hub_fastpath import run_all_modder_hub_tests
     run_all_modder_hub_tests(check)
     ok = sum(1 for _, c, _ in RESULTS if c)

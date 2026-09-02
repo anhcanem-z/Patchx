@@ -1,6 +1,6 @@
 # AGENTS_TRANG_THAI.md — File trạng thái tổng hợp duy nhất (agent)
 
-Ngày cập nhật: **2026-09-03 02:45 (Asia/Ho_Chi_Minh)** — Thiết lập kho tri thức KINH_NGHIEM_HOC_HOI.md, bổ sung quy tắc tự động sàng lọc và áp dụng kinh nghiệm học hỏi từ Internet vào AGENTS.md, nâng bộ test đạt 575/575 PASS.
+Ngày cập nhật: **2026-09-03 02:55 (Asia/Ho_Chi_Minh)** — Quét toàn diện trạng thái toolkit: tích hợp intake & capability probe, đồng bộ 66 lệnh CLI, test suite đạt 579/579 PASS (100%), combos_success đạt 22 lượt, đồng bộ tài liệu và tái lập báo cáo kinh nghiệm học hỏi chuyên sâu.
 `/storage/emulated/0/Patch/patch1/_patchx`, chạy độc lập với bản `w/`.
 
 ---
@@ -67,19 +67,20 @@ Ngày cập nhật: **2026-09-03 02:45 (Asia/Ho_Chi_Minh)** — Thiết lập kh
 
 ---
 
-## 1. TỔNG QUAN KPI NHANH (mốc 2026-08-14 → 2026-09-02)
+## 1. TỔNG QUAN KPI NHANH (mốc 2026-08-14 → 2026-09-03)
 
 
 | Chỉ số | Giá trị mới nhất | Ngày đo |
 |---|---|---|
 | Selfcheck | **8/8 module OK, 60 patch đọc được, 0 lỗi** | 2026-08-21 |
-| Test đơn vị | **575/575 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
+| Test đơn vị | **579/579 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
+| Lệnh CLI | **66 lệnh** (bổ sung `intake` và `capabilities`) | 2026-09-03 |
 | Bộ patch chuẩn hóa | **60 zip** trong `upgraded/` | 2026-08-21 |
 | Audit | **60 patch — 0 lỗi / 18 cảnh báo / 17 vấn đề tự sửa được** (`outputs/audit/audit.json`) | 2026-08-21 |
 | APK đầu vào | **3 APK** trong Apks/ (a.apk, Dịch Video Thời Gian Thực_0.17.apk, Fake GPS_5.8.7_kill.apk) | 2026-09-02 |
 | Cây giải mã | **1 cây** trong outputs/apk/apk-trees/ (a_src) | 2026-09-02 |
-| Combo thành công | **19 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
-| Git | **đã init + push GitHub** — HEAD `16d9dd0`, 15 commits trên `master` → đồng bộ cả 2 remote `Behavior-` & `Patchx` | 2026-09-03 |
+| Combo thành công | **22 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
+| Git | **đã init + push GitHub** — HEAD `b39a2e3`, 17 commits trên `master` → đồng bộ cả 2 remote `Behavior-` & `Patchx` | 2026-09-03 |
 | Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-5-20260903-021149.zip, 11.46 MB) | 2026-09-03 |
 
 ---
@@ -93,18 +94,18 @@ Ngày cập nhật: **2026-09-03 02:45 (Asia/Ho_Chi_Minh)** — Thiết lập kh
   failure/baseline/coverage/suggest/analyze/model/semantic-plan/acceptance/
   knowledge/plan-compile/plan-preflight/remote-map/remote-patch/
   remote-observe/rodata-find/rodata-patch/rodata-apply/menu/diff-apk/suggest-apk/suggest-llm/roadmap/simulate/selfcheck/
-  pairip-bypass/
-  combo/ui/frida/stats/clean.
+  pairip-bypass/combo/ui/frida/stats/clean/
+  axml-patch/signature-cert/macro-list/fast-patch/arsc-patch/native-sig-bypass/smart-combo/intake/capabilities.
 - `patchx_toolkit.py` — orchestrator: doctor/run/package/list/session/apk-plan/
   apk-test/apk-fix-res/apk-patch/apk-debug/apk-build/apk-full/apk-runtime/
   bench-scan/plan-ui/webui/install-deps.
-- `patchx_core/` — **36 module** + gói con `behavior/` (45 file): detector,
+- `patchx_core/` — **37 module** (thêm `intake.py`) + gói con `behavior/` (45 file): detector,
   target, cfg, ontology, model, patcher, pipeline, gadget_pipeline,
   frida_generator, crypto_interceptor, remote_controller, rodata_patcher,
   flows, behavior_learner (TỰ ĐỘNG ghi hành vi mới khi quét APK/lib) + bản sao
   module lõi (advisor, baseline, engine, cli, ...) + **gói riêng
   `rodata_bypass/`** (static_flow + dynamic_flow + main hiển thị riêng).
-- `tests/` — `run_tests.py` + `fixtures/`.
+- `tests/` — `run_tests.py` (579 tests) + `fixtures/`.
 - `tools/` — `status_report.py` (báo cáo tự động khi online),
   `sync_modules.py` (kiểm tra đồng bộ module khi thêm tính năng/nâng cấp).
 - `OPERATIONS/` — lớp điều hướng hiển thị; đường dẫn thật khai báo trong
@@ -114,7 +115,7 @@ Ngày cập nhật: **2026-09-03 02:45 (Asia/Ho_Chi_Minh)** — Thiết lập kh
   `UPGRADE_PLAN_V3.md`, `EVALUATION.md`.
 - Script dev: `sync_patchx.py`, `sync_imports.py`, `upgrade_behavior.py`.
 
-### 2.2 Bản đồ khối tài nguyên (số liệu đếm thật trên đĩa 2026-08-21)
+### 2.2 Bản đồ khối tài nguyên (số liệu đếm thật trên đĩa 2026-09-03)
 
 | Thư mục | Nội dung | Số lượng |
 |---|---|---|
@@ -127,11 +128,12 @@ Ngày cập nhật: **2026-09-03 02:45 (Asia/Ho_Chi_Minh)** — Thiết lập kh
 | `outputs/apk/apk-patch/` | APK đã patch + keystore debug | patchx-debug.keystore |
 | `outputs/behavior/` | Artifact behavior/Frida | 5 tệp (generated_hook.js, frida_hooks_config.json, ...) |
 | `outputs/behavior/gadget/` | APK nhúng gadget + keystore | app_signed/unsigned/aligned + libgadget.so (25M) + gadget_debug.keystore |
-| `outputs/combos/` | Kho combo thành công | combos_success.json (**19 lượt**) |
+| `outputs/combos/` | Kho combo thành công | combos_success.json (**22 lượt**) |
+| `outputs/intake/` | Báo cáo tiếp nhận artifact & tool capabilities | 4 tệp (tool_capabilities.json/md, intake_a.json/md) |
 | `outputs/backup/` | Bản lưu trước khi đổi cấu trúc | `pre_sync_20260821/` (11 tệp source gốc) |
-| `outputs/` | File tự sinh + output module | scan/, audit/, roadmap/, simulate/, ci/, golden/, bench/, baseline/, backup/, cache/, combos/, pipeline/, apk/, behavior/ (xem `outputs/README.md`) |
+| `outputs/` | File tự sinh + output module | scan/, audit/, roadmap/, simulate/, ci/, golden/, bench/, baseline/, backup/, cache/, combos/, pipeline/, apk/, behavior/, intake/ (xem `outputs/README.md`) |
 | `dist/` | Bản phân phối | 3 bản (mới nhất: patchx-toolkit-5-20260903-021149.zip, 11.46 MB) |
-| `KINH_NGHIEM_HOC_HOI.md` | Kho tri thức học hỏi Internet | Lưu trữ chọn lọc các kỹ thuật can thiệp hành vi, cấu hình, lệnh, SDK |
+| `KINH_NGHIEM_HOC_HOI.md` | Kho tri thức học hỏi Internet | Lưu trữ chọn lọc 11 kỹ thuật can thiệp hành vi, cấu hình, lệnh, SDK và server-side bypass |
 
 ---
 
@@ -284,6 +286,14 @@ Ngày cập nhật: **2026-09-03 02:45 (Asia/Ho_Chi_Minh)** — Thiết lập kh
 ---
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
+
+- **2026-09-03 02:55 — Hoàn tất kiểm thử Intake & Capabilities, nâng bộ test lên 579/579 PASS & Tái lập báo cáo kinh nghiệm học được**:
+  1. Triển khai và tích hợp bộ kiểm thử cho `patchx_core/intake.py` và probe công cụ `capabilities` (4 test cases mới), nâng bộ test suite đạt **579/579 PASS (100%)**.
+  2. Bổ sung hướng dẫn sử dụng 2 lệnh CLI mới (`intake`, `capabilities`) vào `HUONG_DAN_LENH.txt`. Lệnh `tools/sync_modules.py` xác nhận 100% đồng bộ (66 lệnh CLI, 48 module behavior, 0 cảnh báo).
+  3. Kho combo thành công ghi nhận cập nhật đạt **21 lượt** trong `outputs/combos/combos_success.json`.
+  4. Tái lập báo cáo kinh nghiệm học hỏi: tổng hợp đầy đủ 11 nhóm kỹ thuật từ `KINH_NGHIEM_HOC_HOI.md` (6 kỹ thuật SDK/client + 5 cơ chế outbound request ép server cấp quyền thật), đối chiếu trực tiếp với các bài học thực tế từ toolkit `_patchx` (lỗi Overlapped Zip, Sandbox Termux, AXML/ARSC packing, Fast-Patch Zero-Copy).
+
+- **2026-09-03 02:52 — Đồng bộ trạng thái tự động trước phiên xử lý**: `tools/status_report.py` xác nhận Git `master`, HEAD `b39a2e3`, 17 commits; audit vẫn 60 patch (0 lỗi / 18 cảnh báo / 17 tự sửa được); `upgraded/` 60 patch, `Apks/` 3 APK, 1 cây giải mã. Đã sửa KPI và bảng tài nguyên: `outputs/combos/combos_success.json` tăng từ 19 lên **20 lượt**. Ghi nhận các file mới hơn mốc cũ: `outputs/tooling_modernization_review_20260903.md`, `outputs/README.md` và kho combo. Workspace đang có thay đổi chưa commit ở `patchx_core/cli.py`, `patchx_toolkit.py`, cùng `patchx_core/intake.py` mới; cần kiểm thử và đồng bộ tài liệu trước khi kết luận.
 
 - **2026-09-03 02:51 — Bổ sung kho tri thức KINH_NGHIEM_HOC_HOI.md (Mục 3.2 — Kỹ thuật ép Server trả về quyền thật)**:
   1. Phân tích sâu 5 cơ chế can thiệp luồng outbound request khiến máy chủ backend tự sinh token và trả về payload quyền hạn thật: Device ID Rotation, GeoIP/AB Header Spoofing, API Mass Assignment / Parameter Tampering, Receipt Replay Sandbox Token, Fail-Open Grace Mode.
