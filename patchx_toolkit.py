@@ -1556,6 +1556,11 @@ def cmd_apk_patch(args):
             if "=" in item:
                 o, n = item.split("=", 1)
                 axml_reps.append((o, n))
+        arsc_reps = []
+        for item in getattr(args, "arsc", []) or []:
+            if "=" in item:
+                o, n = item.split("=", 1)
+                arsc_reps.append((o, n))
 
         _log("Khởi chạy Fast-Path: %s -> %s" % (apk_target, final_apk))
         t0 = time.monotonic()
@@ -1563,6 +1568,7 @@ def cmd_apk_patch(args):
             apk_target,
             dex_replacements=dex_reps if dex_reps else None,
             axml_replacements=axml_reps if axml_reps else None,
+            arsc_replacements=arsc_reps if arsc_reps else None,
             output_apk=final_apk,
             strip_signatures=True,
         )
@@ -1571,8 +1577,8 @@ def cmd_apk_patch(args):
             _log("Fast-Path thất bại: %s" % res.get("message"))
             return 1
 
-        _log("Fast-Path thành công trong %.2fs (DEX: %d hits, AXML: %d hits, Stripped: %d)"
-             % (dt, res["dex_hits"], res["axml_hits"], res["stripped_signatures"]))
+        _log("Fast-Path thành công trong %.2fs (DEX: %d hits, AXML: %d hits, ARSC: %d hits, Stripped: %d)"
+             % (dt, res["dex_hits"], res["axml_hits"], res.get("arsc_hits", 0), res["stripped_signatures"]))
 
         # Ký số APK
         signed = False
@@ -3333,6 +3339,8 @@ def main(argv=None):
                    help="Thay opcode/bytecode hex trong classes*.dex khi chạy --fast")
     p.add_argument("--axml", action="append", default=[], metavar="OLD=NEW",
                    help="Thay chuỗi trong AndroidManifest.xml khi chạy --fast")
+    p.add_argument("--arsc", action="append", default=[], metavar="OLD=NEW",
+                   help="Thay chuỗi trong resources.arsc khi chạy --fast")
     p.add_argument("--no-auto-install", action="store_true",
                    help="Không tự cài công cụ thiếu")
     p.add_argument("--no-sign", action="store_true",

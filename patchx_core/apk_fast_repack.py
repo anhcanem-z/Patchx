@@ -24,6 +24,16 @@ def is_signature_entry(filename):
     return bool(V1_SIG_PATTERN.match(filename))
 
 
+def safe_open_zip(apk_path, mode="r"):
+    """Mở zipfile an toàn, xử lý triệt để lỗi Overlapped entries (Python 3.14+) trên APK mod."""
+    zin = zipfile.ZipFile(apk_path, mode)
+    if mode == "r":
+        for zinfo in getattr(zin, "filelist", []):
+            if hasattr(zinfo, "_end_offset"):
+                zinfo._end_offset = None
+    return zin
+
+
 def fast_repack_apk(apk_in_path, updates_map, apk_out_path=None, strip_signatures=False):
     """Cập nhật các entry trong `updates_map` vào APK gốc.
 
@@ -59,7 +69,7 @@ def fast_repack_apk(apk_in_path, updates_map, apk_out_path=None, strip_signature
     replaced_count = 0
     stripped_count = 0
 
-    with zipfile.ZipFile(apk_in_path, "r") as zin:
+    with safe_open_zip(apk_in_path, "r") as zin:
         with zipfile.ZipFile(apk_out_path, "w", compression=zipfile.ZIP_DEFLATED) as zout:
             # 1. Sao chép các entry không thay đổi
             for item in zin.infolist():
@@ -109,10 +119,10 @@ def fast_repack_apk(apk_in_path, updates_map, apk_out_path=None, strip_signature
 
 
 def fast_patch_and_repack(apk_path, dex_replacements=None, axml_replacements=None,
-                          output_apk=None, strip_signatures=True):
+                          arsc_replacements=None, output_apk=None, strip_signatures=True):
     """Quy trình Fast-Patch tích hợp khép kín:
 
-    Đọc APK -> can thiệp in-place classes.dex và/hoặc AndroidManifest.xml -> repack siêu tốc.
+    Đọc APK -> can thiệp in-place classes.dex, AndroidManifest.xml, resources.arsc -> repack siêu tốc.
     """
     if not os.path.isfile(apk_path):
         raise FileNotFoundError("Không tìm thấy APK: %s" % apk_path)
@@ -120,8 +130,9 @@ def fast_patch_and_repack(apk_path, dex_replacements=None, axml_replacements=Non
     updates = {}
     total_dex_hits = 0
     total_axml_hits = 0
+    total_arsc_hits = 0
 
-    with zipfile.ZipFile(apk_path, "r") as zin:
+    with safe_open_zip(apk_path, "r") as zin:
         namelist = zin.namelist()
 
         # Xử lý DEX
@@ -146,11 +157,9 @@ def fast_patch_and_repack(apk_path, dex_replacements=None, axml_replacements=Non
 
         # Xử lý AndroidManifest.xml
         if axml_replacements and "AndroidManifest.xml" in namelist:
-            from .axml_editor import replace_string_inplace
             xml_data = zin.read("AndroidManifest.xml")
             curr_xml = xml_data
             xml_hits = 0
-            # Sửa in-memory bằng cách thử UTF-8 và UTF-16LE
             for rep in axml_replacements:
                 old_val, new_val = rep[0], rep[1]
                 # Thử UTF-8
@@ -169,17 +178,42 @@ def fast_patch_and_repack(apk_path, dex_replacements=None, axml_replacements=Non
                 updates["AndroidManifest.xml"] = curr_xml
                 total_axml_hits += xml_hits
 
+        # Xử lý resources.arsc
+        if arsc_replacements and "resources.arsc" in namelist:
+            arsc_data = zin.read("resources.arsc")
+            curr_arsc = arsc_data
+            arsc_hits = 0
+            for rep in arsc_replacements:
+                old_val, new_val = rep[0], rep[1]
+                # Thử UTF-8
+                u8_old, u8_new = old_val.encode("utf-8"), new_val.encode("utf-8")
+                if u8_old in curr_arsc and len(u8_new) <= len(u8_old):
+                    cnt = curr_arsc.count(u8_old)
+                    curr_arsc = curr_arsc.replace(u8_old, u8_new + b"\x00" * (len(u8_old) - len(u8_new)))
+                    arsc_hits += cnt
+                # Thử UTF-16LE
+                u16_old, u16_new = old_val.encode("utf-16le"), new_val.encode("utf-16le")
+                if u16_old in curr_arsc and len(u16_new) <= len(u16_old):
+                    cnt = curr_arsc.count(u16_old)
+                    curr_arsc = curr_arsc.replace(u16_old, u16_new + b"\x00" * (len(u16_old) - len(u16_new)))
+                    arsc_hits += cnt
+            if arsc_hits > 0:
+                updates["resources.arsc"] = curr_arsc
+                total_arsc_hits += arsc_hits
+
     if not updates:
         return {
             "success": False,
             "message": "Không có hit nào khớp với các pattern thay thế.",
             "dex_hits": 0,
             "axml_hits": 0,
+            "arsc_hits": 0,
         }
 
     out_path = output_apk or (apk_path[:-4] + "_fastpatched.apk" if apk_path.endswith(".apk") else apk_path + ".fastpatched.apk")
     repack_info = fast_repack_apk(apk_path, updates, apk_out_path=out_path, strip_signatures=strip_signatures)
     repack_info["dex_hits"] = total_dex_hits
     repack_info["axml_hits"] = total_axml_hits
+    repack_info["arsc_hits"] = total_arsc_hits
     repack_info["success"] = True
     return repack_info

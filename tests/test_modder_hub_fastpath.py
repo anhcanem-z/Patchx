@@ -30,13 +30,16 @@ from patchx_core.axml_editor import (
     inspect_chunks,
     inspect_string_pool,
     inspect_binary,
+    inspect_arsc,
     replace_string_inplace,
+    replace_arsc_strings,
     parse_strings,
     inspect_manifest_security,
     bypass_network_security_config,
     replace_permission,
     RES_XML_TYPE,
     RES_STRING_POOL_TYPE,
+    RES_TABLE_TYPE,
 )
 from patchx_core.signature_spoof import (
     is_valid_der_cert,
@@ -49,6 +52,7 @@ from patchx_core.signature_spoof import (
 )
 from patchx_core.apk_fast_repack import (
     is_signature_entry,
+    safe_open_zip,
     fast_repack_apk,
     fast_patch_and_repack,
 )
@@ -297,3 +301,64 @@ def run_all_modder_hub_tests(check_fn):
 
     v_toast_safe = validate_macro("toast_status", 2)
     check_fn("macro: validate toast_status with 2 reg safe", v_toast_safe["safe"] is True)
+
+    # ==================== 6. ARSC EDITOR & COMPATIBILITY ====================
+    # Tạo dummy ARSC (RES_TABLE 0x0002 bọc RES_STRING_POOL 0x0001)
+    arsc_str = b"StringInArscResource"
+    sp_arsc = struct.pack("<HHIIIIII", RES_STRING_POOL_TYPE, 28, 28 + len(arsc_str), 1, 0, 0x100, 28, 0) + arsc_str
+    root_arsc = struct.pack("<HHII", RES_TABLE_TYPE, 12, 12 + len(sp_arsc), 1) + sp_arsc
+
+    with tempfile.TemporaryDirectory() as td:
+        arsc_file = os.path.join(td, "resources.arsc")
+        with open(arsc_file, "wb") as fh:
+            fh.write(root_arsc)
+
+        arsc_info = inspect_arsc(arsc_file)
+        check_fn("arsc: inspect_arsc valid table", arsc_info["is_valid_arsc"] is True)
+        check_fn("arsc: inspect_arsc string pool exists", arsc_info["string_pool"] is not None)
+
+        rep_arsc_res = replace_arsc_strings(arsc_file, [("StringInArscResource", "PatchedArscResource")], backup_path=arsc_file + ".bak")
+        check_fn("arsc: replace_arsc_strings hits", rep_arsc_res["total_hits"] == 1)
+        check_fn("arsc: backup created", os.path.isfile(arsc_file + ".bak"))
+
+        with open(arsc_file, "rb") as fh:
+            check_fn("arsc: patched content present", b"PatchedArscResource" in fh.read())
+
+        # Test safe_open_zip with python 3.14 compatibility
+        apk_test = os.path.join(td, "test_overlap.apk")
+        with zipfile.ZipFile(apk_test, "w") as z:
+            z.writestr("classes.dex", b"dex\n035\0" + b"\x00" * 104)
+            z.writestr("resources.arsc", root_arsc)
+
+        with safe_open_zip(apk_test, "r") as z_safe:
+            entries = z_safe.namelist()
+            check_fn("repack: safe_open_zip read entries", len(entries) == 2)
+            check_fn("repack: safe_open_zip read content", len(z_safe.read("classes.dex")) == 112)
+
+        # Test fast_patch_and_repack with arsc_replacements
+        apk_arsc_out = os.path.join(td, "test_arsc_out.apk")
+        fp_arsc_res = fast_patch_and_repack(
+            apk_test,
+            arsc_replacements=[("StringInArscResource", "PatchedInFastRepack")],
+            output_apk=apk_arsc_out,
+        )
+        check_fn("repack: fast_patch_and_repack with arsc success", fp_arsc_res["success"] is True)
+        check_fn("repack: fast_patch_and_repack arsc_hits", fp_arsc_res["arsc_hits"] == 1)
+
+        with safe_open_zip(apk_arsc_out, "r") as z_out:
+            check_fn("repack: arsc entry patched in output apk", b"PatchedInFastRepack" in z_out.read("resources.arsc"))
+
+    # ==================== 7. NATIVE SIGNATURE PIPELINE ====================
+    with tempfile.TemporaryDirectory() as td:
+        so_file = os.path.join(td, "libnative.so")
+        orig_hash = "11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff"
+        new_hash = "aabbccddeeff11223344556677889900aabbccddeeff11223344556677889900"
+        with open(so_file, "wb") as fh:
+            fh.write(b"\x7fELF" + b"\x00" * 100 + orig_hash.encode("ascii") + b"\x00" * 20)
+
+        spoof_res = scan_and_spoof_native_library(so_file, orig_hash, new_hash, backup=True)
+        check_fn("native: scan_and_spoof_native_library hit", spoof_res["hits"] == 1)
+        check_fn("native: scan_and_spoof_native_library backup", os.path.isfile(so_file + ".bak"))
+
+        with open(so_file, "rb") as fh:
+            check_fn("native: new hash present in .so", new_hash.encode("ascii") in fh.read())

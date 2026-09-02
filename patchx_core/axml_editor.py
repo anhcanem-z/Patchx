@@ -2,16 +2,18 @@
 """Bộ thao tác nhị phân an toàn cho AXML và ARSC (Kế thừa và tối ưu từ Modder Hub).
 
 Hỗ trợ:
-- Phân tích cấu trúc Chunk (RES_XML_TYPE, RES_STRING_POOL_TYPE, RES_XML_RESOURCE_MAP_TYPE, ...).
-- Tự động nhận diện chuỗi String Pool ở cả 2 chuẩn mã hóa UTF-8 và UTF-16LE.
-- Thay thế chuỗi nhị phân in-place an toàn với padding null bytes và tạo backup.
+- Phân tích cấu trúc Chunk (RES_XML_TYPE, RES_STRING_POOL_TYPE, RES_TABLE_TYPE, RES_TABLE_PACKAGE_TYPE, ...).
+- Tự động nhận diện và decode chuỗi String Pool theo chuẩn AOSP cho cả UTF-8 và UTF-16LE.
+- Thay thế chuỗi nhị phân in-place an toàn cho cả AndroidManifest.xml và resources.arsc (đệm null bytes, tạo backup).
 - Trích xuất danh sách chuỗi và báo cáo bảo mật Manifest (permissions, flags, networkSecurityConfig).
 - Bypass Network Security Config (chống SSL Pinning tầng XML) và can thiệp permissions in-place.
+- Phân tích và sửa đổi String Pool toàn cục của bảng tài nguyên resources.arsc.
 """
 
 import os
 import shutil
 import struct
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Định nghĩa các loại Chunk Android Binary XML / ARSC chuẩn
 RES_STRING_POOL_TYPE = 0x0001
@@ -23,6 +25,9 @@ RES_XML_START_ELEMENT_TYPE = 0x0102
 RES_XML_END_ELEMENT_TYPE = 0x0103
 RES_XML_CDATA_TYPE = 0x0104
 RES_XML_RESOURCE_MAP_TYPE = 0x0180
+RES_TABLE_PACKAGE_TYPE = 0x0200
+RES_TABLE_TYPE_TYPE = 0x0201
+RES_TABLE_TYPE_SPEC_TYPE = 0x0202
 
 CHUNK_NAMES = {
     RES_STRING_POOL_TYPE: "RES_STRING_POOL",
@@ -34,10 +39,13 @@ CHUNK_NAMES = {
     RES_XML_END_ELEMENT_TYPE: "RES_XML_END_ELEMENT",
     RES_XML_CDATA_TYPE: "RES_XML_CDATA",
     RES_XML_RESOURCE_MAP_TYPE: "RES_XML_RESOURCE_MAP",
+    RES_TABLE_PACKAGE_TYPE: "RES_TABLE_PACKAGE",
+    RES_TABLE_TYPE_TYPE: "RES_TABLE_TYPE",
+    RES_TABLE_TYPE_SPEC_TYPE: "RES_TABLE_TYPE_SPEC",
 }
 
 
-def inspect_chunks(data, recurse_containers=True):
+def inspect_chunks(data: bytes, recurse_containers: bool = True) -> List[Dict[str, Any]]:
     """Trả danh sách chunk (type, name, offset, header_size, size).
 
     Nếu recurse_containers=True, duyệt sâu vào các chunk con bên trong container (RES_XML hoặc RES_TABLE).
@@ -72,7 +80,7 @@ def inspect_chunks(data, recurse_containers=True):
     return out
 
 
-def inspect_string_pool(data):
+def inspect_string_pool(data: bytes) -> Optional[Dict[str, Any]]:
     """Tìm và đọc thông tin metadata của String Pool (chunk 0x0001)."""
     chunks = inspect_chunks(data, recurse_containers=True)
     sp = None
@@ -104,8 +112,8 @@ def inspect_string_pool(data):
     }
 
 
-def parse_strings(data):
-    """Trích xuất toàn bộ chuỗi text từ String Pool của AXML/ARSC."""
+def parse_strings(data: bytes) -> List[str]:
+    """Trích xuất toàn bộ chuỗi text từ String Pool của AXML/ARSC theo chuẩn biến thiên AOSP."""
     sp = inspect_string_pool(data)
     if not sp:
         return []
@@ -127,25 +135,45 @@ def parse_strings(data):
         if cur >= len(data):
             continue
         if is_utf8:
-            # UTF-8: 1-2 bytes u16 len + 1-2 bytes u8 len + utf8 bytes + \x00
-            u8_len = data[cur + 1] if cur + 1 < len(data) else 0
-            s_bytes = data[cur + 2 : cur + 2 + u8_len]
+            idx = cur
+            if idx >= len(data):
+                continue
+            u16len = data[idx]
+            idx += 1
+            if u16len & 0x80:
+                if idx < len(data):
+                    u16len = ((u16len & 0x7F) << 8) | data[idx]
+                    idx += 1
+            if idx >= len(data):
+                continue
+            u8len = data[idx]
+            idx += 1
+            if u8len & 0x80:
+                if idx < len(data):
+                    u8len = ((u8len & 0x7F) << 8) | data[idx]
+                    idx += 1
+            s_bytes = data[idx : idx + u8len]
             decoded = s_bytes.decode("utf-8", errors="replace").split("\x00")[0]
             strings.append(decoded)
         else:
-            # UTF-16LE: 2 bytes char count + utf-16le bytes + \x00\x00
-            if cur + 2 > len(data):
+            idx = cur
+            if idx + 2 > len(data):
                 continue
-            char_count = struct.unpack_from("<H", data, cur)[0]
-            byte_len = char_count * 2
-            s_bytes = data[cur + 2 : cur + 2 + byte_len]
+            u16len = struct.unpack_from("<H", data, idx)[0]
+            idx += 2
+            if u16len & 0x8000:
+                if idx + 2 <= len(data):
+                    u16len = ((u16len & 0x7FFF) << 16) | struct.unpack_from("<H", data, idx)[0]
+                    idx += 2
+            byte_len = u16len * 2
+            s_bytes = data[idx : idx + byte_len]
             decoded = s_bytes.decode("utf-16le", errors="replace").split("\x00")[0]
             strings.append(decoded)
 
     return strings
 
 
-def inspect_binary(path):
+def inspect_binary(path: str) -> Dict[str, Any]:
     """Kiểm tra tổng quát file nhị phân AXML/ARSC."""
     if not os.path.isfile(path):
         raise FileNotFoundError("Không tìm thấy tệp nhị phân: %s" % path)
@@ -166,7 +194,38 @@ def inspect_binary(path):
     }
 
 
-def inspect_manifest_security(path):
+def inspect_arsc(path: str) -> Dict[str, Any]:
+    """Phân tích chuyên sâu file bảng tài nguyên resources.arsc."""
+    info = inspect_binary(path)
+    with open(path, "rb") as fh:
+        raw = fh.read()
+
+    packages = []
+    for c in info["chunks"]:
+        if c["type"] == RES_TABLE_PACKAGE_TYPE:
+            off = c["offset"]
+            if off + 12 + 256 <= len(raw):
+                pkg_id = struct.unpack_from("<I", raw, off + 8)[0]
+                pkg_name = raw[off + 12 : off + 12 + 256].decode("utf-16le", errors="replace").split("\x00")[0]
+                packages.append({
+                    "id": pkg_id,
+                    "name": pkg_name,
+                    "offset": off,
+                    "size": c["size"],
+                })
+
+    strings = parse_strings(raw)
+    return {
+        "path": path,
+        "size": info["size"],
+        "is_valid_arsc": len(info["chunks"]) > 0 and info["chunks"][0]["type"] == RES_TABLE_TYPE,
+        "string_pool": info["string_pool"],
+        "total_strings": len(strings),
+        "packages": packages,
+    }
+
+
+def inspect_manifest_security(path: str) -> Dict[str, Any]:
     """Phân tích các cờ và thuộc tính bảo mật trong AndroidManifest.xml nhị phân."""
     if not os.path.isfile(path):
         raise FileNotFoundError("Không tìm thấy tệp: %s" % path)
@@ -190,7 +249,13 @@ def inspect_manifest_security(path):
     }
 
 
-def replace_string_inplace(path, old, new, backup_path=None, encoding="auto"):
+def replace_string_inplace(
+    path: str,
+    old: Union[str, bytes],
+    new: Union[str, bytes],
+    backup_path: Optional[str] = None,
+    encoding: str = "auto",
+) -> Dict[str, Any]:
     """Thay thế chuỗi nhị phân trong AXML/ARSC in-place.
 
     Hỗ trợ auto-detect cả chuỗi UTF-8 và UTF-16LE, tự đệm null bytes và sao lưu an toàn.
@@ -255,7 +320,37 @@ def replace_string_inplace(path, old, new, backup_path=None, encoding="auto"):
     }
 
 
-def bypass_network_security_config(path, backup_path=None):
+def replace_arsc_strings(
+    arsc_path: str,
+    replacements: List[Tuple[str, str]],
+    backup_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Thay thế danh sách chuỗi trong file tài nguyên resources.arsc in-place."""
+    if not os.path.isfile(arsc_path):
+        raise FileNotFoundError("Không tìm thấy tệp: %s" % arsc_path)
+
+    total_hits = 0
+    results = []
+    for old_s, new_s in replacements:
+        res = replace_string_inplace(arsc_path, old_s, new_s, backup_path=None, encoding="auto")
+        total_hits += res["hits"]
+        results.append(res)
+
+    if backup_path and total_hits > 0:
+        bdir = os.path.dirname(os.path.abspath(backup_path))
+        if bdir:
+            os.makedirs(bdir, exist_ok=True)
+        shutil.copy2(arsc_path, backup_path)
+
+    return {
+        "path": arsc_path,
+        "total_hits": total_hits,
+        "replacements": len(replacements),
+        "backup": backup_path if total_hits > 0 else None,
+    }
+
+
+def bypass_network_security_config(path: str, backup_path: Optional[str] = None) -> Dict[str, Any]:
     """Vô hiệu hóa Network Security Config (bỏ qua SSL Pinning do XML định nghĩa).
 
     Đổi tên thuộc tính networkSecurityConfig thành disabledSecConfig để Android PackageParser bỏ qua.
@@ -269,7 +364,7 @@ def bypass_network_security_config(path, backup_path=None):
     )
 
 
-def replace_permission(path, old_permission, new_permission, backup_path=None):
+def replace_permission(path: str, old_permission: str, new_permission: str, backup_path: Optional[str] = None) -> Dict[str, Any]:
     """Thay thế một permission này bằng permission khác in-place trong AXML.
 
     Ví dụ: đổi android.permission.ACCESS_ADSERVICES_ATTRIBUTION thành android.permission.RECORD_AUDIO

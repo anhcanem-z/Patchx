@@ -907,7 +907,7 @@ def cmd_apk_repack_fast(args):
 
 
 def cmd_fast_patch(args):
-    """Quy trình Fast-Patch 1-Click: sửa DEX/AXML in-place và repack siêu tốc."""
+    """Quy trình Fast-Patch 1-Click: sửa DEX/AXML/ARSC in-place và repack siêu tốc."""
     from .apk_fast_repack import fast_patch_and_repack
     dex_reps = []
     for item in getattr(args, "dex_str", []) or []:
@@ -929,9 +929,16 @@ def cmd_fast_patch(args):
             return 2
         old, new = item.split("=", 1)
         axml_reps.append((old, new))
+    arsc_reps = []
+    for item in getattr(args, "arsc", []) or []:
+        if "=" not in item:
+            print("[fast-patch] --arsc phải có dạng OLD=NEW: %s" % item)
+            return 2
+        old, new = item.split("=", 1)
+        arsc_reps.append((old, new))
 
-    if not dex_reps and not axml_reps:
-        print("[fast-patch] Cần ít nhất một --dex-str, --dex-hex hoặc --axml")
+    if not dex_reps and not axml_reps and not arsc_reps:
+        print("[fast-patch] Cần ít nhất một --dex-str, --dex-hex, --axml hoặc --arsc")
         return 2
 
     strip = not getattr(args, "no_strip", False)
@@ -940,17 +947,151 @@ def cmd_fast_patch(args):
             args.apk,
             dex_replacements=dex_reps if dex_reps else None,
             axml_replacements=axml_reps if axml_reps else None,
+            arsc_replacements=arsc_reps if arsc_reps else None,
             output_apk=args.output,
             strip_signatures=strip,
         )
         if not res.get("success"):
             print("[fast-patch] Không tìm thấy pattern để vá: %s" % res.get("message"))
             return 1
-        print("[fast-patch] THÀNH CÔNG: DEX hits=%d, AXML hits=%d, stripped=%d, file ra: %s (%d bytes)" %
-              (res["dex_hits"], res["axml_hits"], res["stripped_signatures"], res["apk_out"], res["out_size"]))
+        print("[fast-patch] THÀNH CÔNG: DEX hits=%d, AXML hits=%d, ARSC hits=%d, stripped=%d, file ra: %s (%d bytes)" %
+              (res["dex_hits"], res["axml_hits"], res.get("arsc_hits", 0), res["stripped_signatures"], res["apk_out"], res["out_size"]))
         return 0
     except (OSError, ValueError, zipfile.BadZipFile) as exc:
         print("[fast-patch] LỖI: %s" % exc)
+        return 2
+
+
+def cmd_arsc_patch(args):
+    """Phân tích và patch chuỗi nhị phân trong resources.arsc in-place."""
+    from .axml_editor import inspect_arsc, replace_arsc_strings
+    try:
+        if getattr(args, "inspect", False):
+            info = inspect_arsc(args.arsc)
+            print("[arsc-patch] THÔNG TIN RESOURCES.ARSC: %s" % args.arsc)
+            print("  Hợp lệ        : %s" % info["is_valid_arsc"])
+            print("  Kích thước    : %d bytes" % info["size"])
+            print("  Tổng chuỗi    : %d chuỗi trong String Pool" % info["total_strings"])
+            for pkg in info["packages"]:
+                print("  Package       : ID=0x%02X, Tên=%s" % (pkg["id"], pkg["name"]))
+            return 0
+
+        reps = []
+        if getattr(args, "replace", []):
+            for item in args.replace:
+                if "=" not in item:
+                    print("[arsc-patch] --replace phải có dạng OLD=NEW: %s" % item)
+                    return 2
+                o, n = item.split("=", 1)
+                reps.append((o, n))
+
+        if getattr(args, "old", None) and getattr(args, "new", None):
+            reps.append((args.old, args.new))
+
+        if not reps:
+            print("[arsc-patch] Cần chỉ định chuỗi OLD và NEW hoặc dùng --replace OLD=NEW, hoặc --inspect")
+            return 2
+
+        if args.dry_run:
+            info = inspect_arsc(args.arsc)
+            print("[arsc-patch] DRY-RUN %s: %d bytes, %d chuỗi" % (args.arsc, info["size"], info["total_strings"]))
+            with open(args.arsc, "rb") as fh:
+                raw = fh.read()
+            for o, n in reps:
+                cnt_u8 = raw.count(o.encode("utf-8"))
+                cnt_u16 = raw.count(o.encode("utf-16le"))
+                print("  Pattern %r -> %r (hit UTF-8: %d, UTF-16LE: %d)" % (o, n, cnt_u8, cnt_u16))
+            return 0
+
+        backup = args.backup or args.arsc + ".bak"
+        res = replace_arsc_strings(args.arsc, reps, backup_path=backup)
+        print("[arsc-patch] THÀNH CÔNG: %d hit trên %d mẫu, backup: %s" %
+              (res["total_hits"], res["replacements"], res["backup"] or "không tạo"))
+        return 0
+    except (OSError, ValueError) as exc:
+        print("[arsc-patch] LỖI: %s" % exc)
+        return 2
+
+
+def cmd_native_sig_bypass(args):
+    """Quy trình 1-Click tự động quét và bypass SHA-256 cert hash trong các thư viện native .so."""
+    from .signature_spoof import multi_layer_spoof_pipeline, signature_context
+    from .apk_fast_repack import fast_repack_apk
+    import tempfile, shutil, zipfile
+    try:
+        if not os.path.isfile(args.apk):
+            print("[native-sig-bypass] Không tìm thấy APK: %s" % args.apk)
+            return 2
+
+        orig_apk = args.orig_apk or args.apk
+        if not os.path.isfile(orig_apk):
+            print("[native-sig-bypass] Không tìm thấy APK gốc: %s" % orig_apk)
+            return 2
+
+        orig_ctx = signature_context(orig_apk)
+        print("[native-sig-bypass] APK gốc cert SHA-256: %s (%d bytes)" %
+              (orig_ctx["sha256"], orig_ctx["cert_bytes"]))
+
+        mod_ctx = signature_context(args.apk)
+        print("[native-sig-bypass] APK đích cert SHA-256: %s" % mod_ctx["sha256"])
+
+        with tempfile.TemporaryDirectory() as td:
+            # Giải nén các thư viện .so từ APK
+            so_dir = os.path.join(td, "lib")
+            extracted_sos = []
+            with zipfile.ZipFile(args.apk, "r") as zin:
+                for name in zin.namelist():
+                    if name.startswith("lib/") and name.endswith(".so"):
+                        dest = os.path.join(td, name)
+                        os.makedirs(os.path.dirname(dest), exist_ok=True)
+                        with open(dest, "wb") as fh:
+                            fh.write(zin.read(name))
+                        extracted_sos.append(name)
+
+            if not extracted_sos:
+                print("[native-sig-bypass] APK không chứa thư viện native (lib/**/*.so).")
+            else:
+                print("[native-sig-bypass] Đã tìm thấy %d thư viện native .so" % len(extracted_sos))
+
+            frida_out = args.frida_out or os.path.join(BASE_DIR, "outputs", "behavior", "native_sig_hook.js")
+            if args.dry_run:
+                print("[native-sig-bypass] DRY-RUN: Quét tìm SHA-256 cert hash...")
+                for so_rel in extracted_sos:
+                    so_path = os.path.join(td, so_rel)
+                    with open(so_path, "rb") as fh:
+                        raw = fh.read()
+                    h_mod = mod_ctx["sha256"].encode("ascii")
+                    cnt = raw.count(h_mod) + raw.count(h_mod.lower())
+                    print("  %s: %d hit" % (so_rel, cnt))
+                print("[native-sig-bypass] Kịch bản Frida sẽ sinh: %s" % frida_out)
+                return 0
+
+            # Thực thi pipeline
+            res = multi_layer_spoof_pipeline(
+                original_apk=orig_apk,
+                so_dir=so_dir if extracted_sos else None,
+                new_cert_apk=args.apk if extracted_sos else None,
+                frida_script_out=frida_out
+            )
+
+            patched_sos = {}
+            for p in res.get("native_patches", []):
+                rel_name = os.path.relpath(p["so"], td)
+                with open(p["so"], "rb") as fh:
+                    patched_sos[rel_name] = fh.read()
+                print("[native-sig-bypass] Đã vá %d hit trong: %s" % (p["hits"], rel_name))
+
+            if patched_sos:
+                out_apk = args.output or (args.apk[:-4] + "_native_spoofed.apk")
+                fast_repack_apk(args.apk, patched_sos, apk_out_path=out_apk, strip_signatures=True)
+                print("[native-sig-bypass] APK đã cập nhật .so và gỡ chữ ký cũ: %s" % out_apk)
+            else:
+                print("[native-sig-bypass] Không tìm thấy chuỗi hash cần vá trong các file .so (khuyến nghị dùng Frida hook).")
+
+            print("[native-sig-bypass] Kịch bản Frida Multi-Layer đã sinh: %s" % res["frida_script"])
+            return 0
+    except Exception as exc:
+        print("[native-sig-bypass] LỖI: %s" % exc)
         return 2
 
 
@@ -2553,14 +2694,33 @@ def main(argv=None):
     p.add_argument("--dry-run", action="store_true", help="Chỉ kiểm tra tham số, không tạo APK")
     p.set_defaults(func=cmd_apk_repack_fast)
 
-    p = sub.add_parser("fast-patch", help="Quy trình 1-Click vá DEX/AXML in-place và repack APK siêu tốc")
+    p = sub.add_parser("fast-patch", help="Quy trình 1-Click vá DEX/AXML/ARSC in-place và repack APK siêu tốc")
     p.add_argument("apk", help="APK gốc")
     p.add_argument("-o", "--output", required=True, help="APK đầu ra đã patch")
     p.add_argument("--dex-str", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi UTF-8 trong classes*.dex")
     p.add_argument("--dex-hex", action="append", default=[], metavar="TARGET=REPL", help="Thay opcode/bytecode hex trong classes*.dex")
     p.add_argument("--axml", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi trong AndroidManifest.xml (auto UTF-8/UTF-16)")
+    p.add_argument("--arsc", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi trong resources.arsc (auto UTF-8/UTF-16)")
     p.add_argument("--no-strip", action="store_true", help="Không tự động gỡ file chữ ký cũ trong META-INF")
     p.set_defaults(func=cmd_fast_patch)
+
+    p = sub.add_parser("arsc-patch", help="Phân tích và thay thế chuỗi trong bảng tài nguyên resources.arsc")
+    p.add_argument("arsc", help="File resources.arsc")
+    p.add_argument("old", nargs="?", default=None, help="Chuỗi gốc cần tìm")
+    p.add_argument("new", nargs="?", default=None, help="Chuỗi mới thay thế")
+    p.add_argument("--replace", action="append", default=[], metavar="OLD=NEW", help="Mẫu thay thế dạng OLD=NEW")
+    p.add_argument("--inspect", action="store_true", help="Kiểm tra thông tin chi tiết bảng tài nguyên và package")
+    p.add_argument("--backup", default=None, help="Đường dẫn file sao lưu (.bak)")
+    p.add_argument("--dry-run", action="store_true", help="Chỉ kiểm tra hit, không ghi tệp")
+    p.set_defaults(func=cmd_arsc_patch)
+
+    p = sub.add_parser("native-sig-bypass", help="Tự động quét và bypass SHA-256 cert hash trong thư viện native .so")
+    p.add_argument("apk", help="APK đích cần bypass chữ ký native")
+    p.add_argument("--orig-apk", default=None, help="APK gốc chứa chứng chỉ chuẩn (nếu khác APK đích)")
+    p.add_argument("-o", "--output", default=None, help="Đường dẫn APK đầu ra sau khi vá .so")
+    p.add_argument("--frida-out", default=None, help="Đường dẫn file kịch bản Frida hook đa tầng")
+    p.add_argument("--dry-run", action="store_true", help="Chỉ quét tìm hit hash trong .so, không vá APK")
+    p.set_defaults(func=cmd_native_sig_bypass)
 
     p = sub.add_parser("behavior", help="Phân tích hành vi APK dựa trên bằng chứng")
     p.add_argument("thu_muc", help="Cây APK đã giải mã")

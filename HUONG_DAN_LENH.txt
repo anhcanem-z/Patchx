@@ -305,14 +305,27 @@ macro-list
        python3 patchx macro-list --registers 2
 
 fast-patch
-   Quy trình 1-Click vá DEX và/hoặc AndroidManifest.xml in-place và repack
+   Quy trình 1-Click vá DEX, AndroidManifest.xml, resources.arsc in-place và repack
    siêu tốc trong < 0.5 giây, tự động gỡ chữ ký cũ để chuẩn bị ký mới:
        python3 patchx fast-patch app.apk -o app_patched.apk \
            --dex-str "https://api.old.com"="https://api.new.com" \
            --dex-hex 12000f00=12100f00 \
-           --axml "com.old.pkg"="com.new.pkg"
+           --axml "com.old.pkg"="com.new.pkg" \
+           --arsc "OldAppName"="NewAppName"
+
+arsc-patch
+   Phân tích và thay thế chuỗi in-place trong String Pool của resources.arsc:
+       python3 patchx arsc-patch resources.arsc --inspect
+       python3 patchx arsc-patch resources.arsc "OldStr" "NewStr"
+       python3 patchx arsc-patch resources.arsc --replace "OldStr=NewStr" --backup backup.arsc
+
+native-sig-bypass
+   Quy trình 1-Click tự động quét và bypass SHA-256 cert hash trong các thư viện native .so:
+       python3 patchx native-sig-bypass app.apk --orig-apk orig.apk -o out.apk
+       python3 patchx native-sig-bypass app.apk --dry-run
 
 apk-patch --fast (Toolkit Pipeline)
    Tích hợp Fast-Path vào orchestrator của toolkit, tự động ký số debug:
        python3 patchx_toolkit.py apk-patch app.apk --fast \
-           --dex-str "old_val=new_val" --axml "old_pkg=new_pkg"
+           --dex-str "old_val=new_val" --axml "old_pkg=new_pkg" --arsc "OldApp=NewApp"
+

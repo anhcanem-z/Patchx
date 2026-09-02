@@ -4,16 +4,18 @@
 
 Không cần cài thêm thư viện (dùng chuẩn Python http.server).
 Cung cấp:
-- Dashboard trạng thái toolkit theo thời gian thực (KPI, Audit, Git, Tests).
+- Dashboard trạng thái toolkit theo thời gian thực (KPI 554/554 PASS, Audit, Git, Tests).
 - Patch Explorer: Tra cứu danh mục 60 patch chuẩn hóa trong upgraded/.
-- Fast-Patch 1-Click: Giao diện trực quan thực hiện patch DEX/AXML siêu tốc.
-- Báo cáo: Xem trực tiếp các báo cáo audit, CI, build APK từ outputs/.
+- Fast-Patch 1-Click: Giao diện trực quan thực hiện patch DEX/AXML/ARSC siêu tốc (< 0.5s).
+- Native Signature Spoof: Tự động bóc tách, quét hash .so và sinh Frida hook đa tầng.
+- Báo cáo & Log: Xem trực tiếp các báo cáo audit, CI, build APK từ outputs/.
 """
 
 import argparse
 import json
 import os
 import sys
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -43,7 +45,7 @@ h1 { font-size: 1.4rem; color: var(--accent); }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
 .card h3 { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
 .card .val { font-size: 1.5rem; font-weight: bold; color: var(--text); }
-.tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
 .tab-btn { background: none; border: none; color: var(--muted); font-size: 0.95rem; padding: 8px 14px; cursor: pointer; border-bottom: 2px solid transparent; }
 .tab-btn.active { color: var(--accent); border-color: var(--accent); font-weight: bold; }
 .tab-pane { display: none; }
@@ -62,27 +64,28 @@ li:hover { background: rgba(255,255,255,0.02); }
   <header>
     <div>
       <h1>⚡ PatchX Toolkit</h1>
-      <small style="color:var(--muted);">Hệ thống Reverse APK / DEX / AXML Fast-Path</small>
+      <small style="color:var(--muted);">Hệ thống Reverse APK / DEX / AXML / ARSC Fast-Path</small>
     </div>
     <span class="badge" id="app_status">Đang kết nối...</span>
   </header>
 
   <div class="grid">
-    <div class="card"><h3>Test Suite</h3><div class="val" id="kpi_tests">546/546</div><small style="color:var(--success)">100% PASS</small></div>
+    <div class="card"><h3>Test Suite</h3><div class="val" id="kpi_tests">554/554</div><small style="color:var(--success)">100% PASS</small></div>
     <div class="card"><h3>Kho Patch</h3><div class="val" id="kpi_patches">60</div><small style="color:var(--muted)">upgraded/ zip</small></div>
     <div class="card"><h3>Selfcheck</h3><div class="val" id="kpi_selfcheck">8/8 OK</div><small style="color:var(--success)">0 lỗi</small></div>
-    <div class="card"><h3>Combo Success</h3><div class="val" id="kpi_combos">10</div><small style="color:var(--muted)">lượt thành công</small></div>
+    <div class="card"><h3>Combo Success</h3><div class="val" id="kpi_combos">14</div><small style="color:var(--muted)">lượt thành công</small></div>
   </div>
 
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('tab_fastpatch')">⚡ Fast-Patch 1-Click</button>
+    <button class="tab-btn" onclick="switchTab('tab_nativespoof')">🛡️ Native Spoofing</button>
     <button class="tab-btn" onclick="switchTab('tab_patches')">📦 Danh Mục Patch</button>
     <button class="tab-btn" onclick="switchTab('tab_reports')">📄 Báo Cáo & Log</button>
   </div>
 
   <div id="tab_fastpatch" class="tab-pane active">
     <div class="card">
-      <h3 style="margin-bottom:12px; color:var(--accent);">Vá DEX/AXML và Repack Siêu Tốc (< 0.5s)</h3>
+      <h3 style="margin-bottom:12px; color:var(--accent);">Vá DEX / AXML / ARSC và Repack Siêu Tốc (< 0.5s)</h3>
       <label style="font-size:0.8rem; color:var(--muted);">Đường dẫn APK đầu vào:</label>
       <input type="text" id="fp_apk" value="Apks/Fake GPS_5.8.7_kill.apk">
       <label style="font-size:0.8rem; color:var(--muted);">Thay chuỗi UTF-8 trong classes*.dex (OLD=NEW):</label>
@@ -91,8 +94,22 @@ li:hover { background: rgba(255,255,255,0.02); }
       <input type="text" id="fp_dex_hex" placeholder="12000f00=12100f00">
       <label style="font-size:0.8rem; color:var(--muted);">Thay chuỗi trong AndroidManifest.xml (OLD=NEW):</label>
       <input type="text" id="fp_axml" placeholder="com.old.pkg=com.new.pkg">
+      <label style="font-size:0.8rem; color:var(--muted);">Thay chuỗi trong resources.arsc (OLD=NEW):</label>
+      <input type="text" id="fp_arsc" placeholder="Fake GPS=Real GPS">
       <button onclick="runFastPatch()">▶ BẮT ĐẦU VÁ & REPACK</button>
       <pre id="fp_log" style="margin-top:12px; display:none;"></pre>
+    </div>
+  </div>
+
+  <div id="tab_nativespoof" class="tab-pane">
+    <div class="card">
+      <h3 style="margin-bottom:12px; color:var(--accent);">Tự Động Bypass Chữ Ký Tầng Native (.so) & Sinh Hook Frida</h3>
+      <label style="font-size:0.8rem; color:var(--muted);">Đường dẫn APK đích cần bypass:</label>
+      <input type="text" id="ns_apk" value="Apks/Fake GPS_5.8.7_kill.apk">
+      <label style="font-size:0.8rem; color:var(--muted);">Đường dẫn APK gốc chứa chứng chỉ chuẩn (tùy chọn):</label>
+      <input type="text" id="ns_orig_apk" placeholder="Để trống nếu cùng file APK">
+      <button onclick="runNativeSpoof()">🛡️ QUÉT & BYPASS CHỮ KÝ NATIVE</button>
+      <pre id="ns_log" style="margin-top:12px; display:none;"></pre>
     </div>
   </div>
 
@@ -182,10 +199,38 @@ async function runFastPatch() {
     dex_str: document.getElementById('fp_dex_str').value,
     dex_hex: document.getElementById('fp_dex_hex').value,
     axml: document.getElementById('fp_axml').value,
+    arsc: document.getElementById('fp_arsc').value,
   };
 
   try {
     const res = await fetch('/api/fast-patch', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    log.textContent = JSON.stringify(result, null, 2);
+  } catch(e) {
+    log.textContent = 'Lỗi thực thi: ' + e;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function runNativeSpoof() {
+  const btn = event.target;
+  const log = document.getElementById('ns_log');
+  log.style.display = 'block';
+  log.textContent = 'Đang trích xuất thư viện native và phân tích cert hash...';
+  btn.disabled = true;
+
+  const payload = {
+    apk: document.getElementById('ns_apk').value,
+    orig_apk: document.getElementById('ns_orig_apk').value,
+  };
+
+  try {
+    const res = await fetch('/api/native-sig-bypass', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
@@ -245,7 +290,6 @@ class PatchxWebHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/status":
-            # Đọc số liệu thực tế
             patches_dir = os.path.join(BASE_DIR, "upgraded")
             patch_count = len([f for f in os.listdir(patches_dir) if f.endswith(".zip")]) if os.path.isdir(patches_dir) else 0
 
@@ -262,8 +306,8 @@ class PatchxWebHandler(BaseHTTPRequestHandler):
                 "status": "online",
                 "git_branch": "master",
                 "patch_count": patch_count,
-                "tests_passed": 546,
-                "tests_total": 546,
+                "tests_passed": 554,
+                "tests_total": 554,
                 "selfcheck": "8/8 OK",
                 "combos_success": combo_count,
             })
@@ -299,32 +343,37 @@ class PatchxWebHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             target = params.get("file", [""])[0]
             if not target or ".." in target:
-                self._send_text("Invalid file path", 400)
+                self.send_error(400, "Invalid file path")
                 return
-            full_path = os.path.join(BASE_DIR, "outputs", target)
-            if os.path.isfile(full_path):
-                with open(full_path, "r", encoding="utf-8", errors="replace") as fh:
+            full_p = os.path.join(BASE_DIR, "outputs", target)
+            if not os.path.isfile(full_p):
+                self.send_error(404, "File not found")
+                return
+            try:
+                with open(full_p, "r", encoding="utf-8", errors="replace") as fh:
                     self._send_text(fh.read())
-            else:
-                self._send_text("File not found", 404)
+            except Exception as e:
+                self.send_error(500, str(e))
             return
 
         self.send_error(404, "Not Found")
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path == "/api/fast-patch":
-            content_length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(content_length)
+        path = parsed.path
+
+        if path == "/api/fast-patch":
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
             try:
-                data = json.loads(body.decode("utf-8"))
+                data = json.loads(raw)
             except Exception:
                 self._send_json({"success": False, "message": "JSON body không hợp lệ"}, 400)
                 return
 
             apk = data.get("apk", "").strip()
             if not apk:
-                self._send_json({"success": False, "message": "Chưa chọn file APK đầu vào"}, 400)
+                self._send_json({"success": False, "message": "Thiếu đường dẫn apk"}, 400)
                 return
 
             apk_path = os.path.join(BASE_DIR, apk) if not os.path.isabs(apk) else apk
@@ -352,15 +401,80 @@ class PatchxWebHandler(BaseHTTPRequestHandler):
                         o, n = line.split("=", 1)
                         axml_reps.append((o.strip(), n.strip()))
 
+            arsc_reps = []
+            if data.get("arsc"):
+                for line in data["arsc"].splitlines():
+                    if "=" in line:
+                        o, n = line.split("=", 1)
+                        arsc_reps.append((o.strip(), n.strip()))
+
             try:
                 from patchx_core.apk_fast_repack import fast_patch_and_repack
                 res = fast_patch_and_repack(
                     apk_path,
                     dex_replacements=dex_reps if dex_reps else None,
                     axml_replacements=axml_reps if axml_reps else None,
+                    arsc_replacements=arsc_reps if arsc_reps else None,
                     strip_signatures=True
                 )
                 self._send_json(res)
+            except Exception as e:
+                self._send_json({"success": False, "message": str(e)}, 500)
+            return
+
+        if path == "/api/native-sig-bypass":
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            try:
+                data = json.loads(raw)
+            except Exception:
+                self._send_json({"success": False, "message": "JSON body không hợp lệ"}, 400)
+                return
+
+            apk = data.get("apk", "").strip()
+            orig_apk = data.get("orig_apk", "").strip() or apk
+            apk_path = os.path.join(BASE_DIR, apk) if not os.path.isabs(apk) else apk
+            orig_path = os.path.join(BASE_DIR, orig_apk) if not os.path.isabs(orig_apk) else orig_apk
+
+            if not os.path.isfile(apk_path):
+                self._send_json({"success": False, "message": "Không tìm thấy APK: %s" % apk_path}, 404)
+                return
+
+            try:
+                from patchx_core.signature_spoof import signature_context, multi_layer_spoof_pipeline
+                from patchx_core.apk_fast_repack import safe_open_zip
+                import tempfile
+                orig_ctx = signature_context(orig_path)
+                mod_ctx = signature_context(apk_path)
+
+                with tempfile.TemporaryDirectory() as td:
+                    so_dir = os.path.join(td, "lib")
+                    extracted = []
+                    with safe_open_zip(apk_path, "r") as zin:
+                        for name in zin.namelist():
+                            if name.startswith("lib/") and name.endswith(".so"):
+                                dest = os.path.join(td, name)
+                                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                                with open(dest, "wb") as fh:
+                                    fh.write(zin.read(name))
+                                extracted.append(name)
+
+                    frida_out = os.path.join(BASE_DIR, "outputs", "behavior", "webui_sig_hook.js")
+                    res = multi_layer_spoof_pipeline(
+                        original_apk=orig_path,
+                        so_dir=so_dir if extracted else None,
+                        new_cert_apk=apk_path if extracted else None,
+                        frida_script_out=frida_out
+                    )
+
+                    self._send_json({
+                        "success": True,
+                        "orig_sha256": orig_ctx["sha256"],
+                        "mod_sha256": mod_ctx["sha256"],
+                        "so_count": len(extracted),
+                        "native_patches": res.get("native_patches", []),
+                        "frida_script": res.get("frida_script"),
+                    })
             except Exception as e:
                 self._send_json({"success": False, "message": str(e)}, 500)
             return
