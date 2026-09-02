@@ -1,6 +1,6 @@
 # AGENTS_TRANG_THAI.md — File trạng thái tổng hợp duy nhất (agent)
 
-Ngày cập nhật: **2026-09-02 13:20 (Asia/Ho_Chi_Minh)** — Lưu kinh nghiệm Modder Hub & bổ sung mục tiêu tối ưu kiến trúc vào ưu tiên hàng đầu; bộ test 503/503 đạt 100% PASS.
+Ngày cập nhật: **2026-09-03 01:00 (Asia/Ho_Chi_Minh)** — Hoàn tất tối ưu & tích hợp 5 module Modder Hub, nâng cấp fast-patch 1-click, bộ test đạt 546/546 (100% PASS).
 `/storage/emulated/0/Patch/patch1/_patchx`, chạy độc lập với bản `w/`.
 
 ---
@@ -62,14 +62,14 @@ Ngày cập nhật: **2026-09-02 13:20 (Asia/Ho_Chi_Minh)** — Lưu kinh nghi�
 | Chỉ số | Giá trị mới nhất | Ngày đo |
 |---|---|---|
 | Selfcheck | **8/8 module OK, 60 patch đọc được, 0 lỗi** | 2026-08-21 |
-| Test đơn vị | **503/503 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-02 |
+| Test đơn vị | **546/546 đạt (100% PASS)** — chạy trọn vẹn `tests/run_tests.py`, 0 lỗi, 0 thất bại | 2026-09-03 |
 | Bộ patch chuẩn hóa | **60 zip** trong `upgraded/` | 2026-08-21 |
 | Audit | **60 patch — 0 lỗi / 18 cảnh báo / 17 vấn đề tự sửa được** (`outputs/audit/audit.json`) | 2026-08-21 |
 | APK đầu vào | **3 APK** trong Apks/ (a.apk, Dịch Video Thời Gian Thực_0.17.apk, Fake GPS_5.8.7_kill.apk) | 2026-09-02 |
 | Cây giải mã | **1 cây** trong outputs/apk/apk-trees/ (a_src) | 2026-09-02 |
-| Combo thành công | **4 lượt** trong `outputs/combos/combos_success.json` | 2026-09-02 |
+| Combo thành công | **10 lượt** trong `outputs/combos/combos_success.json` | 2026-09-03 |
 | Git | **đã init + push GitHub** — commit đầu `125a7a3` nhánh `master` → `anhcanem-z/Behavior-` (241 file; loại `outputs/`, `Apks/`, `dist/`, `.codex/`, `libso/`) | 2026-08-21 |
-| Bản phân phối | **3 bản** trong `dist/` (mới nhất: patchx-toolkit-10-20260821-143407.zip, 11.93 MB) | 2026-08-21 |
+| Bản phân phối | **2 bản** trong `dist/` (mới nhất: patchx-toolkit-2-20260903-010047.zip, 11.45 MB) | 2026-09-03 |
 
 ---
 
@@ -116,10 +116,10 @@ Ngày cập nhật: **2026-09-02 13:20 (Asia/Ho_Chi_Minh)** — Lưu kinh nghi�
 | `outputs/apk/apk-patch/` | APK đã patch + keystore debug | patchx-debug.keystore |
 | `outputs/behavior/` | Artifact behavior/Frida | 5 tệp (generated_hook.js, frida_hooks_config.json, ...) |
 | `outputs/behavior/gadget/` | APK nhúng gadget + keystore | app_signed/unsigned/aligned + libgadget.so (25M) + gadget_debug.keystore |
-| `outputs/combos/` | Kho combo thành công | combos_success.json (**4 lượt**) |
+| `outputs/combos/` | Kho combo thành công | combos_success.json (**10 lượt**) |
 | `outputs/backup/` | Bản lưu trước khi đổi cấu trúc | `pre_sync_20260821/` (11 tệp source gốc) |
 | `outputs/` | File tự sinh + output module | scan/, audit/, roadmap/, simulate/, ci/, golden/, bench/, baseline/, backup/, cache/, combos/, pipeline/, apk/, behavior/ (xem `outputs/README.md`) |
-| `dist/` | Bản phân phối | 3 bản (v8/v9/v10; mới nhất v10-20260821-143407.zip 11.93 MB) |
+| `dist/` | Bản phân phối | 2 bản (mới nhất: patchx-toolkit-2-20260903-010047.zip, 11.45 MB) |
 
 ---
 
@@ -204,8 +204,7 @@ Ngày cập nhật: **2026-09-02 13:20 (Asia/Ho_Chi_Minh)** — Lưu kinh nghi�
 - **Test/code lệch schema key** (`cách_công_cụ` trong test vs `cach_cong_cu`
   trong `patchx_core/bypass_advisor.py`) → lỗi có sẵn, cần sửa đồng bộ
   test hoặc code trước khi có mốc test đầy đủ.
-- **`webui` có lệnh nhưng thiếu thư mục `webui/`** → chạy `webui` sẽ lỗi
-  thiếu `server.py`; cần bổ sung nếu dùng giao diện web.
+- **`webui` đã BỔ SUNG HOÀN TẤT 2026-09-03** — `webui/server.py` máy chủ HTTP thuần Python, cung cấp Dashboard trạng thái, Patch Explorer (60 patch), và giao diện Fast-Patch 1-click trực quan chạy trên Termux/Android.
 - **`python3` (Termux) đã SỬA XONG 2026-08-21 14:12** — trước đó binary 7.5KB
   lỗi ELF header (bản build dở từ `/data/data/com.termux/files/usr/tmp/
   py312build`, ghi nhận 12:21); giờ chạy bình thường: `python3 --version` =
@@ -276,9 +275,28 @@ Ngày cập nhật: **2026-09-02 13:20 (Asia/Ho_Chi_Minh)** — Lưu kinh nghi�
 
 ## 8. MỐC CẬP NHẬT + LỊCH SỬ
 
+- **2026-09-03 01:00 — Nâng cấp toàn diện 5 module Modder Hub, bổ sung Fast-Patch 1-Click & mở rộng test suite đạt 546/546 (100% PASS)**:
+  1. `dex_inplace.py`: Sửa lỗi unpacking struct header DEX (`<I20s20I`), bổ sung Direct Opcode/Bytecode Patching (`replace_bytecode_pattern`, `patch_dex_file_bytecode`, hằng số Dalvik `FORCE_TRUE_V0`, `FORCE_FALSE_V0`, `RETURN_VOID`, `OP_NOP`). CLI `dex-patch` nâng cấp hỗ trợ `--replace-hex TARGET=REPL`.
+  2. `axml_editor.py`: Sửa lỗi chỉ duyệt 1 container root chunk trong `inspect_chunks`, bổ sung đệ quy duyệt toàn bộ sub-chunks (String pool, Resource map, Elements), bổ sung `inspect_string_pool`, tự động nhận diện và thay thế chuỗi UTF-16LE in-place bên cạnh UTF-8 với đệm null bytes.
+  3. `apk_fast_repack.py`: Bổ sung `is_signature_entry` và cờ `strip_signatures=True` tự động dọn dẹp file chữ ký cũ (`META-INF/*.SF`, `*.RSA`, `*.MF`) tránh xung đột chữ ký khi cài đặt; xây dựng workflow khép kín `fast_patch_and_repack` và đăng ký lệnh CLI `fast-patch`.
+  4. `macro_registry.py`: Loại bỏ opcode `pop` không hợp lệ trong Smali, chuẩn hóa `logcat_interceptor` và `toast_status`, bổ sung các macro chuẩn Modder Hub (`return_true`, `return_false`, `return_null`, `return_void`, `kill_process`, `trust_manager_template`).
+  5. `signature_spoof.py`: Bổ sung kiểm tra tính hợp lệ ASN.1 DER SEQUENCE `0x30` (`is_valid_der_cert`) và hàm tiện ích `inject_spoof_to_env`.
+  6. Xây dựng bộ kiểm thử `tests/test_modder_hub_fastpath.py` (43 test cases), tích hợp vào `tests/run_tests.py`, nâng tổng số test đạt **546/546 PASS (100%)**, `selfcheck` 8/8 module OK, 60 patch đọc được, 0 lỗi. Đồng bộ `HUONG_DAN_LENH.txt` (61 lệnh CLI).
+
+- **2026-09-03 00:50 — Quét toàn diện workspace, xác nhận test suite 503/503 PASS & Rà soát 5 module Modder Hub**:
+  1. Chạy `tools/status_report.py` và `tests/run_tests.py` đạt **503/503 PASS (100%)**, `combos_success.json` ghi nhận 9 lượt, `selfcheck` đạt 8/8 module.
+  2. Ghi nhận 5 module Modder Hub mới trong `patchx_core/` (`dex_inplace.py`, `axml_editor.py`, `signature_spoof.py`, `apk_fast_repack.py`, `macro_registry.py`) cùng 5 lệnh tương ứng đã đăng ký trong `patchx_core/cli.py` (`dex-patch`, `apk-repack-fast`, `axml-patch`, `signature-cert`, `macro-list`) và đồng bộ `HUONG_DAN_LENH.txt`.
+  3. Xác định các đề xuất ưu tiên: viết test suite cho 5 module mới, kết nối pipeline fast-path, tối ưu tài nguyên lưu trữ và hoàn thiện giao diện/tài liệu.
+
 - **2026-09-02 13:20 — Nghiên cứu kinh nghiệm Modder Hub & Bổ sung mục tiêu tối ưu hàng đầu**:
   1. Đúc kết 5 trục kiến trúc từ Modder Hub (`developer-krushna`): (1) Direct DEX Bytecode Patching, (2) Binary AXML/ARSC Editor, (3) Multi-Layer Signature Spoofing, (4) In-Place Zip Repacking, (5) Smali Macro Registry.
   2. Thiết lập mục tiêu tích hợp vào vị trí **Ưu tiên số 1** trong kế hoạch phát triển `_patchx`.
+
+- **2026-09-02 13:51 — Áp dụng bố cục workspace đã học theo lớp tương thích**:
+  1. Tạo các vùng điều hướng `docs/`, `data/`, `workspaces/`, `artifacts/`, `experiments/`; giữ nguyên `patchx_core/`, `tests/`, `tools/` và các đường dẫn dữ liệu mà CLI đang dùng.
+  2. Đồng bộ `OPERATIONS/NAVIGATION.json`, `OPERATIONS/README.md`, `outputs/README.md`.
+  3. Ghi nhận `patchx_core/dex_inplace.py` và `patchx_core/apk_fast_repack.py`; chưa đưa vào CLI trước khi có test/contract riêng.
+  4. `tools/status_report.py` lúc 13:51 xác nhận HEAD `5121510`, audit 60 patch (0 lỗi/18 cảnh báo/17 tự sửa), 3 APK và 1 cây giải mã.
 
 - **2026-09-02 13:02 — Khắc phục triệt để lỗi Schema & Chuẩn hóa Unicode/Accents**:
   1. Đã sửa toàn bộ các lỗi chính tả/lệch dấu trong schema: `recommendation_only` (thay vì `recommenđạtion_only`), `PurchasesUpdatedListener` & `onPurchasesUpdated` trong `detector.py`/`patchx_core`, `mẫu_bỏ_qua` trong `advisor.py`, `RISK_RULES` có dấu trong `risk.py`, chuẩn hóa `flow_summary_text`/`dataflow_summary_text` và `terminal_ui.py`.

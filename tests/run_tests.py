@@ -4635,6 +4635,8 @@ def main():
     test_behavior_aux_modules()
     test_fixtures_mau()
     test_session_selector()
+    from tests.test_modder_hub_fastpath import run_all_modder_hub_tests
+    run_all_modder_hub_tests(check)
     ok = sum(1 for _, c, _ in RESULTS if c)
     total = len(RESULTS)
     print("\nKết quả: %d/%d kiểm tra đạt" % (ok, total))

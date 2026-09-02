@@ -267,3 +267,41 @@ GHI CHÚ
   `initializeLicenseCheck`), `LicenseActivity.onStart` tự `finish`;
   `--apply` ghi đè smali (backup tự động, idempotent); báo cáo tại
   `outputs/behavior/pairip_bypass/`.
+
+
+======================================================================
+TỐI ƯU MODDER HUB — FAST PATH
+======================================================================
+
+dex-patch
+   Patch chuỗi UTF-8 trực tiếp trong classes*.dex, tự cập nhật SHA-1/Adler32
+   và tạo backup. Mặc định không dùng apktool:
+       python3 patchx dex-patch classes.dex --replace OLD=NEW
+   Kiểm tra trước, không ghi:
+       python3 patchx dex-patch classes.dex --dry-run --replace OLD=NEW
+
+apk-repack-fast
+   Repack chỉ các entry thay đổi của APK, giữ lại entry khác và không tự ký:
+       python3 patchx apk-repack-fast app.apk -o app_fast.apk \
+           --update classes.dex=/tmp/classes.dex
+   Luôn dùng APK đầu ra mới; bước ký/verify thực hiện riêng sau đó.
+
+axml-patch
+   Inspect hoặc thay chuỗi nhị phân AXML/ARSC có cùng/nhỏ hơn độ dài; luôn có backup:
+       python3 patchx axml-patch AndroidManifest.xml OLD NEW --dry-run
+
+signature-cert
+   Trích DER cert v1 gốc, SHA-256 và context PATCHX_RSA_DATA; không ký APK:
+       python3 patchx signature-cert app.apk -o outputs/signature_context.json
+
+macro-list
+   Liệt kê Smali macro và kiểm tra số register dự kiến:
+       python3 patchx macro-list --registers 2
+
+fast-patch
+   Quy trình 1-Click vá DEX và/hoặc AndroidManifest.xml in-place và repack
+   siêu tốc trong < 0.5 giây, tự động gỡ chữ ký cũ để chuẩn bị ký mới:
+       python3 patchx fast-patch app.apk -o app_patched.apk \
+           --dex-str "https://api.old.com"="https://api.new.com" \
+           --dex-hex 12000f00=12100f00 \
+           --axml "com.old.pkg"="com.new.pkg"

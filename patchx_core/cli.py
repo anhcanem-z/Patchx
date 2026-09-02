@@ -744,6 +744,174 @@ def cmd_test(args):
     return mod.main()
 
 
+def cmd_axml_patch(args):
+    """Patch chuỗi nhị phân AXML/ARSC in-place, có dry-run và backup."""
+    from .axml_editor import inspect_binary, replace_string_inplace
+    try:
+        info=inspect_binary(args.binary)
+        if args.dry_run:
+            print("[axml-patch] DRY-RUN %s: %d bytes, %d chunk" % (args.binary, info["size"], len(info["chunks"])))
+            return 0
+        backup=args.backup or args.binary+".bak"
+        result=replace_string_inplace(args.binary,args.old,args.new,backup)
+        print("[axml-patch] %d hit, backup: %s" % (result["hits"], result["backup"] or "không tạo"))
+        return 0
+    except (OSError,ValueError) as exc:
+        print("[axml-patch] LỖI: %s" % exc); return 2
+
+def cmd_signature_cert(args):
+    from .signature_spoof import signature_context, write_context
+    try:
+        ctx=signature_context(args.apk)
+        if args.output:
+            write_context(args.apk,args.output)
+            print("[signature-cert] đã ghi %s" % args.output)
+        print("[signature-cert] DER=%d bytes SHA-256=%s" % (ctx["cert_bytes"],ctx["sha256"]))
+        return 0
+    except (OSError,ValueError) as exc:
+        print("[signature-cert] LỖI: %s" % exc); return 2
+
+def cmd_macro_list(args):
+    from .macro_registry import list_macros, validate_macro
+    for name in list_macros():
+        print("%s: required_registers=%d safe=%s" % (name, validate_macro(name,args.registers)["required_registers"], validate_macro(name,args.registers)["safe"]))
+    return 0
+
+def cmd_dex_patch(args):
+    """Direct DEX string & bytecode patch, có backup và không qua apktool."""
+    from .dex_inplace import inspect_dex, patch_dex_file_strings, patch_dex_file_bytecode
+    replace_hex = getattr(args, "replace_hex", [])
+    if not args.replace and not replace_hex:
+        print("[patchx] cần ít nhất một --replace OLD=NEW hoặc --replace-hex TARGET_HEX=REPL_HEX")
+        return 2
+    try:
+        with open(args.dex, "rb") as fh:
+            raw = fh.read()
+        info = inspect_dex(raw)
+        if args.dry_run:
+            print("[dex-patch] DRY-RUN %s: %d bytes, %s" %
+                  (args.dex, len(raw), info["magic"]))
+            for item in args.replace:
+                if "=" in item:
+                    old, new = item.split("=", 1)
+                    print("  str: %r -> %r (%d hit)" % (old, new, raw.count(old.encode("utf-8"))))
+            for item in replace_hex:
+                if "=" in item:
+                    old_h, new_h = item.split("=", 1)
+                    old_b = bytes.fromhex(old_h.replace(" ", "").replace("0x", ""))
+                    print("  hex: %s -> %s (%d hit)" % (old_h, new_h, raw.count(old_b)))
+            return 0
+        backup = args.backup or os.path.join(BASE_DIR, "outputs", "backup", "dex_inplace")
+        total_replaced = 0
+        if args.replace:
+            replacements = []
+            for item in args.replace:
+                if "=" not in item:
+                    print("[patchx] --replace phải có dạng OLD=NEW: %s" % item)
+                    return 2
+                old, new = item.split("=", 1)
+                if not old:
+                    print("[patchx] OLD không được rỗng")
+                    return 2
+                replacements.append((old, new))
+            res_str = patch_dex_file_strings(args.dex, replacements, backup_dir=backup)
+            total_replaced += res_str["total_replaced"]
+        if replace_hex:
+            hex_repls = []
+            for item in replace_hex:
+                if "=" not in item:
+                    print("[patchx] --replace-hex phải có dạng TARGET=REPL: %s" % item)
+                    return 2
+                t_h, r_h = item.split("=", 1)
+                if not t_h:
+                    print("[patchx] TARGET hex không được rỗng")
+                    return 2
+                hex_repls.append((t_h, r_h))
+            res_hex = patch_dex_file_bytecode(args.dex, hex_repls, backup_dir=backup)
+            total_replaced += res_hex["total_replaced"]
+        print("[dex-patch] đã sửa %d hit, backup: %s" %
+              (total_replaced, backup))
+        return 0
+    except (OSError, ValueError) as exc:
+        print("[dex-patch] LỖI: %s" % exc)
+        return 2
+
+
+def cmd_apk_repack_fast(args):
+    """Fast repack chỉ thay entry được chỉ định; không ký APK."""
+    from .apk_fast_repack import fast_repack_apk
+    updates = {}
+    for item in args.update:
+        if "=" not in item:
+            print("[apk-repack-fast] --update phải có dạng ENTRY=FILE: %s" % item)
+            return 2
+        entry, source = item.split("=", 1)
+        if not entry or not source or not os.path.isfile(source):
+            print("[apk-repack-fast] entry hoặc file không hợp lệ: %s" % item)
+            return 2
+        updates[entry] = source
+    if args.dry_run:
+        print("[apk-repack-fast] DRY-RUN: %s -> %s (%d entry)" %
+              (args.apk, args.output, len(updates)))
+        return 0
+    try:
+        result = fast_repack_apk(args.apk, updates, args.output)
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        print("[apk-repack-fast] LỖI: %s" % exc)
+        return 2
+    print("[apk-repack-fast] %d entry cập nhật, %d entry giữ nguyên; chưa ký APK" %
+          (result["updated_entries"], result["copied_entries"]))
+    return 0
+
+
+def cmd_fast_patch(args):
+    """Quy trình Fast-Patch 1-Click: sửa DEX/AXML in-place và repack siêu tốc."""
+    from .apk_fast_repack import fast_patch_and_repack
+    dex_reps = []
+    for item in getattr(args, "dex_str", []) or []:
+        if "=" not in item:
+            print("[fast-patch] --dex-str phải có dạng OLD=NEW: %s" % item)
+            return 2
+        old, new = item.split("=", 1)
+        dex_reps.append((old, new, False))
+    for item in getattr(args, "dex_hex", []) or []:
+        if "=" not in item:
+            print("[fast-patch] --dex-hex phải có dạng TARGET=REPL: %s" % item)
+            return 2
+        old_h, new_h = item.split("=", 1)
+        dex_reps.append((old_h, new_h, True))
+    axml_reps = []
+    for item in getattr(args, "axml", []) or []:
+        if "=" not in item:
+            print("[fast-patch] --axml phải có dạng OLD=NEW: %s" % item)
+            return 2
+        old, new = item.split("=", 1)
+        axml_reps.append((old, new))
+
+    if not dex_reps and not axml_reps:
+        print("[fast-patch] Cần ít nhất một --dex-str, --dex-hex hoặc --axml")
+        return 2
+
+    strip = not getattr(args, "no_strip", False)
+    try:
+        res = fast_patch_and_repack(
+            args.apk,
+            dex_replacements=dex_reps if dex_reps else None,
+            axml_replacements=axml_reps if axml_reps else None,
+            output_apk=args.output,
+            strip_signatures=strip,
+        )
+        if not res.get("success"):
+            print("[fast-patch] Không tìm thấy pattern để vá: %s" % res.get("message"))
+            return 1
+        print("[fast-patch] THÀNH CÔNG: DEX hits=%d, AXML hits=%d, stripped=%d, file ra: %s (%d bytes)" %
+              (res["dex_hits"], res["axml_hits"], res["stripped_signatures"], res["apk_out"], res["out_size"]))
+        return 0
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        print("[fast-patch] LỖI: %s" % exc)
+        return 2
+
+
 def cmd_dex_budget(args):
     """P5 — DEX Resource Manager: ước lượng refs + mức an toàn."""
     from .dex_budget import DEX_METHOD_MAX, budget_report, strategy_for
@@ -2307,6 +2475,47 @@ def main(argv=None):
         description="Bộ script nâng cấp cho bộ sưu tập patch APK Editor.")
     parser.add_argument("--version", action="version", version="patchx %s" % __version__)
     sub = parser.add_subparsers(dest="lenh", metavar="LENH")
+
+    p = sub.add_parser("axml-patch", help="Patch chuỗi nhị phân AXML/ARSC có backup")
+    p.add_argument("binary", help="AndroidManifest.xml hoặc resources.arsc")
+    p.add_argument("old", help="Chuỗi cũ")
+    p.add_argument("new", help="Chuỗi mới không dài hơn chuỗi cũ")
+    p.add_argument("--backup", default=None, help="Tệp backup")
+    p.add_argument("--dry-run", action="store_true", help="Chỉ inspect chunk, không ghi")
+    p.set_defaults(func=cmd_axml_patch)
+
+    p = sub.add_parser("signature-cert", help="Trích DER cert gốc và SHA-256, không ký APK")
+    p.add_argument("apk", help="APK gốc")
+    p.add_argument("-o", "--output", default=None, help="JSON context đầu ra")
+    p.set_defaults(func=cmd_signature_cert)
+
+    p = sub.add_parser("macro-list", help="Liệt kê Smali macro và yêu cầu register")
+    p.add_argument("--registers", type=int, default=2, help="Số register dự kiến")
+    p.set_defaults(func=cmd_macro_list)
+
+    p = sub.add_parser("dex-patch", help="Patch chuỗi và bytecode DEX trực tiếp, không qua apktool")
+    p.add_argument("dex", help="Tệp classes*.dex")
+    p.add_argument("--replace", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi UTF-8 in-place; có thể lặp lại")
+    p.add_argument("--replace-hex", action="append", default=[], metavar="TARGET=REPL", help="Thay opcode/bytecode hex in-place (vd: 12000f00=12100f00)")
+    p.add_argument("--backup", default=None, help="Thư mục backup")
+    p.add_argument("--dry-run", action="store_true", help="Chỉ kiểm tra hit, không ghi tệp")
+    p.set_defaults(func=cmd_dex_patch)
+
+    p = sub.add_parser("apk-repack-fast", help="Repack APK chỉ với entry thay đổi")
+    p.add_argument("apk", help="APK gốc")
+    p.add_argument("-o", "--output", required=True, help="APK đầu ra mới")
+    p.add_argument("--update", action="append", default=[], metavar="ENTRY=FILE", help="Entry APK và file thay thế")
+    p.add_argument("--dry-run", action="store_true", help="Chỉ kiểm tra tham số, không tạo APK")
+    p.set_defaults(func=cmd_apk_repack_fast)
+
+    p = sub.add_parser("fast-patch", help="Quy trình 1-Click vá DEX/AXML in-place và repack APK siêu tốc")
+    p.add_argument("apk", help="APK gốc")
+    p.add_argument("-o", "--output", required=True, help="APK đầu ra đã patch")
+    p.add_argument("--dex-str", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi UTF-8 trong classes*.dex")
+    p.add_argument("--dex-hex", action="append", default=[], metavar="TARGET=REPL", help="Thay opcode/bytecode hex trong classes*.dex")
+    p.add_argument("--axml", action="append", default=[], metavar="OLD=NEW", help="Thay chuỗi trong AndroidManifest.xml (auto UTF-8/UTF-16)")
+    p.add_argument("--no-strip", action="store_true", help="Không tự động gỡ file chữ ký cũ trong META-INF")
+    p.set_defaults(func=cmd_fast_patch)
 
     p = sub.add_parser("behavior", help="Phân tích hành vi APK dựa trên bằng chứng")
     p.add_argument("thu_muc", help="Cây APK đã giải mã")

@@ -80,6 +80,17 @@
       "targets": [
         "../outputs/README.md"
       ]
+    },
+    {
+      "id": "08_workspace_layout",
+      "role": "Bố cục workspace tương thích theo lớp chức năng",
+      "targets": [
+        "../docs",
+        "../data",
+        "../workspaces",
+        "../artifacts",
+        "../experiments"
+      ]
     }
   ]
 }

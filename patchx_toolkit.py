@@ -597,6 +597,7 @@ def cmd_package(args):
         "EVALUATION.md",
         "upgraded",
         "hook_remote_data_control",
+        "webui",
     ]
     if os.path.isdir(DEFAULT_DEMO_APK):
         included.append("demo-apk")

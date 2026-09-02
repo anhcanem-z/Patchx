@@ -18,3 +18,7 @@ này để nhận dạng đúng nhóm dữ liệu mà không làm hỏng tham ch
 Quy tắc: thao tác trên đường dẫn thật; không di chuyển dữ liệu vào
 `OPERATIONS/`. Sau khi thêm một nhóm nguồn mới, cập nhật `NAVIGATION.json`
 và kiểm tra toàn bộ target tồn tại.
+
+| `08_workspace_layout` | Bố cục workspace theo lớp chức năng | `docs/`, `data/`, `workspaces/`, `artifacts/`, `experiments/` |
+
+Các vùng bố cục mới là lớp điều hướng tương thích. Dữ liệu đang được CLI, test và báo cáo tham chiếu vẫn giữ nguyên vị trí cho đến khi có contract di chuyển và bộ kiểm thử đầy đủ.
